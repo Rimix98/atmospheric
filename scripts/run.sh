@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Лаунчер погодного оверлея с тестовыми флагами.
+# Launcher for the weather overlay with test flags.
 #
-#   bash scripts/run.sh --rain        # запуск с принудительным дождём
-#   bash scripts/run.sh --snow        # снег
-#   bash scripts/run.sh --fog         # туман
-#   bash scripts/run.sh --thunder     # гроза
-#   bash scripts/run.sh --night       # ночь
-#   bash scripts/run.sh --clear       # «ясно» — проверка, что окно скрывается
-#   bash scripts/run.sh               # обычный запуск (реальная погода)
+#   bash scripts/run.sh --rain        # run with forced rain
+#   bash scripts/run.sh --snow        # snow
+#   bash scripts/run.sh --fog         # fog
+#   bash scripts/run.sh --thunder     # thunderstorm
+#   bash scripts/run.sh --night       # night
+#   bash scripts/run.sh --clear       # "clear" — check that the window hides
+#   bash scripts/run.sh               # normal run (real weather)
 #
-# Флаги должны идти ПЕРВЫМИ, всё после них уходит в quickshell как есть
-# (например: bash scripts/run.sh --rain --qs-extra-flags).
+# Flags must come FIRST; everything after them goes to quickshell as-is
+# (e.g.: bash scripts/run.sh --rain --qs-extra-flags).
 #
-# Если quickshell уже запущен — перезапуск не нужен, тест переключается на лету:
+# If quickshell is already running — no restart needed, tests switch on the fly:
 #   qs -p /path/to/atmospheric ipc call weather test rain
 #   qs -p /path/to/atmospheric ipc call weather test off
 set -euo pipefail
@@ -21,30 +21,30 @@ DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() {
     cat <<'EOF'
-Использование: run.sh [ФЛАГ] [-- доп. аргументы quickshell]
+Usage: run.sh [FLAG] [-- extra quickshell args]
 
-Тестовые флаги (эквивалент ATMOSPHERIC_TEST=<mode>):
-  --rain          дождь
-  --heavy-rain    ливень
-  --drizzle       морось
-  --snow          снег
-  --fog           туман
-  --fog-dense     густой туман (плотнее и заметнее)
-  --blizzard      метель (плотный косой снег)
-  --sleet         дождь со снегом
-  --hail          град (крупинки поверх грозы)
-  --thunder       гроза (дождь + вспышки)
-  --rainbow       радуга после дождя
-  --cloudy        облачность (лёгкое затемнение)
-  --night         ночь (затемнение + холодный тон); combine с реальным состоянием
-  --clear         ясно — оверлей должен скрыться
-  --off           без теста (реальная погода)
-  --test=MODE     произвольный режим
-  -h, --help      эта справка
+Test flags (equivalent to ATMOSPHERIC_TEST=<mode>):
+  --rain          rain
+  --heavy-rain    heavy rain
+  --drizzle       drizzle
+  --snow          snow
+  --fog           fog
+  --fog-dense     dense fog (thicker, more visible)
+  --blizzard      blizzard (dense slanted snow)
+  --sleet         sleet
+  --hail          hail (pellets over a thunderstorm)
+  --thunder       thunderstorm (rain + flashes)
+  --rainbow       rainbow after rain
+  --cloudy        cloudy (slight dimming)
+  --night         night (dimming + cool tone); combine with real state
+  --clear         clear — the overlay should hide
+  --off           no test (real weather)
+  --test=MODE     arbitrary mode
+  -h, --help      this help
 
-Без перезапуска (если quickshell уже работает):
-  qs -p /path/to/atmospheric ipc call weather test <режим>     # например: snow, thunder, off
-  qs -p /path/to/atmospheric ipc call weather testMode         # текущий режим
+Without a restart (if quickshell is already running):
+  qs -p /path/to/atmospheric ipc call weather test <mode>     # e.g.: snow, thunder, off
+  qs -p /path/to/atmospheric ipc call weather testMode         # current mode
 EOF
 }
 
@@ -68,7 +68,7 @@ while [[ $# -gt 0 ]]; do
             break
             ;;
         *)
-            # Неизвестное — передаём quickshell как есть (он сам ругнётся на опечатку)
+            # Unknown — pass to quickshell as-is (it will complain about typos itself)
             break
             ;;
     esac
@@ -76,8 +76,8 @@ done
 
 if [[ -n "$mode" && "$mode" != "off" ]]; then
     export ATMOSPHERIC_TEST="$mode"
-    echo "Тестовый режим: ATMOSPHERIC_TEST=$mode"
-    echo "Снять: qs -p /path/to/atmospheric ipc call weather test off   (или перезапустить без флага)"
+    echo "Test mode: ATMOSPHERIC_TEST=$mode"
+    echo "Turn off: qs -p /path/to/atmospheric ipc call weather test off   (or restart without the flag)"
 fi
 
 exec quickshell -p "$DIR" "$@"

@@ -3,7 +3,7 @@ name = "atmospheric-radar"
 version = "1.0.0"
 edition = "2021"
 license = "MIT"
-description = "Радар RainViewer для оверлея atmospheric: сеть + декод PNG вне QML"
+description = "RainViewer radar for the atmospheric overlay: network + PNG decode outside QML"
 
 [dependencies]
 ureq = { version = "3", features = ["json"] }

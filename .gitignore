@@ -1,16 +1,16 @@
-# Артефакты сборки Rust-демона
+# Rust daemon build artifacts
 radar-backend/target/
 
-# Релизные архивы
+# Release archives
 dist/
 
-# Резервные копии, которые делает установщик автозапуска
+# Backups made by the autostart installer
 *.bak-atmospheric-*
 
-# Локальные логи
+# Local logs
 *.log
 
-# Машинно-зависимые настройки редакторов/LSP
+# Machine-dependent editor/LSP settings
 .qmlls.ini
 .idea/
 .vscode/

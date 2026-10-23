@@ -1,77 +1,77 @@
-// Все настройки оверлея в одном месте.
+// All overlay settings in one place.
 import QtQuick
 
 QtObject {
-    // ---------- Город и API ----------
-    property string city: "Орёл"
-    property real latitude: 52.9668
-    property real longitude: 36.0625
-    property int refreshMinutes: 10      // интервал опроса Open-Meteo/Yr (плюс 0..2 мин случайности)
-    property int radarMinutes: 3         // опрос списка кадров радара RainViewer (кадр каждые 10 мин)
-    property int radarMaxAgeMinutes: 25  // свежесть радарного кадра; старше — работаем по прогнозу
+    // ---------- City and API ----------
+    property string city: "New York"
+    property real latitude: 40.7128
+    property real longitude: -74.0060
+    property int refreshMinutes: 10      // Open-Meteo/Yr poll interval (plus 0..2 min of jitter)
+    property int radarMinutes: 3         // RainViewer frame list poll (one frame every 10 min)
+    property int radarMaxAgeMinutes: 25  // radar frame freshness; older — fall back to the forecast
 
-    // ---------- Поведение ----------
-    property bool enabled: true          // общий выключатель (atmospheric toggle)
-    property string layer: "top"         // "top" — под полноэкранными окнами,
-                                         // "overlay" — всегда поверх всего
-    property bool debugSquare: false     // этап 1: полупрозрачный красный квадрат + отладочный текст
+    // ---------- Behavior ----------
+    property bool enabled: true          // master switch (atmospheric toggle)
+    property string layer: "top"         // "top" — under fullscreen windows,
+                                         // "overlay" — always on top of everything
+    property bool debugSquare: false     // stage 1: translucent red square + debug text
 
-    // ---------- Облачность ----------
-    property bool dimCloudy: false       // затемнение при облачности (коды 2-3) —
-                                          // УБРАНО по желанию: облачность больше
-                                          // ничего не рисует, днём окно скрыто
-    property real cloudyDimOpacity: 0.10 // на случай, если захотите вернуть
+    // ---------- Cloud cover ----------
+    property bool dimCloudy: false       // dimming for cloud cover (codes 2-3) —
+                                          // REMOVED by request: cloud cover draws
+                                          // nothing anymore, window hidden in daytime
+    property real cloudyDimOpacity: 0.10 // in case you want to bring it back
 
-    // ---------- Ночь ----------
-    property bool nightDim: false        // ГАСИТЬ экран ночью (правда меняет яркость!)
-                                          // — по умолчанию выключено
-    property real nightOpacity: 0.18     // сила затемнения, если nightDim: true
-    property real nightTintOpacity: 0.06 // холодный оттенок ночью — яркость почти не трогает
+    // ---------- Night ----------
+    property bool nightDim: false        // DIM the screen at night (really changes brightness!)
+                                          // — off by default
+    property real nightOpacity: 0.18     // dim strength when nightDim: true
+    property real nightTintOpacity: 0.06 // cool tint at night — barely touches brightness
 
-    // ---------- Гроза ----------
-    property real flashPeakOpacity: 0.20 // пиковая прозрачность вспышки
+    // ---------- Thunderstorm ----------
+    property real flashPeakOpacity: 0.20 // peak flash opacity
 
-    // ---------- Туман ----------
-    property real fogDensity: 2.5        // множитель количества облаков (2.5 ≈ в 2.5 раза гуще)
-    property color fogColor: "#ccd9ea"    // серо-голубой: читается и на белом, и на тёмном
-    property real fogSpeed: 12           // дрейф облаков, px/с (12 ≈ 2,5 мин на переход)
-    property real fogOpacity: 0.45       // заметность тумана (0..1)
-    // Второй сигнал тумана: видимость из Open-Meteo (часовой бин).
-    // WMO 45/48 остаётся основным; видимость ловит «дымку» без туманного кода.
-    property real fogVisibilityM: 1000   // видимость меньше — туман
-    property real fogDenseVisibilityM: 300 // меньше — густой туман (облака плотнее и заметнее)
+    // ---------- Fog ----------
+    property real fogDensity: 2.5        // cloud count multiplier (2.5 ≈ 2.5× denser)
+    property color fogColor: "#ccd9ea"    // grayish blue: readable on both white and dark
+    property real fogSpeed: 12           // cloud drift, px/s (12 ≈ 2.5 min per crossing)
+    property real fogOpacity: 0.45       // fog visibility (0..1)
+    // Second fog signal: visibility from Open-Meteo (hourly bin).
+    // WMO 45/48 stays primary; visibility catches "haze" without a fog code.
+    property real fogVisibilityM: 1000   // below this visibility — fog
+    property real fogDenseVisibilityM: 300 // below — dense fog (clouds denser and more visible)
 
-    // ---------- Метель ----------
-    property real blizzardWind: 8        // снег + ветер сильнее — метель: плотнее, косее, быстрее
+    // ---------- Blizzard ----------
+    property real blizzardWind: 8        // snow + stronger wind — blizzard: denser, more slanted, faster
 
-    // ---------- Дождь со снегом (переохлаждённый дождь, WMO 66/67) ----------
-    property int sleetRainRate: 90       // капельная часть смеси
-    property int sleetSnowRate: 12       // снежная часть смеси
+    // ---------- Sleet (freezing rain, WMO 66/67) ----------
+    property int sleetRainRate: 90       // the rain part of the mix
+    property int sleetSnowRate: 12       // the snow part of the mix
 
-    // ---------- Град (только с грозой, WMO 96/99) ----------
-    property color hailColor: "#e3eefb"  // крупинки: холодный белый, в отличие от синеватого дождя
-    property int hailRate: 240           // короткие быстрые крупинки поверх дождя
+    // ---------- Hail (only with thunder, WMO 96/99) ----------
+    property color hailColor: "#e3eefb"  // grains: cool white, unlike the bluish rain
+    property int hailRate: 240           // short fast grains over the rain
 
-    // ---------- Радуга после дождя ----------
+    // ---------- Rainbow after rain ----------
     property bool rainbowEnabled: true
-    property int rainbowMinutes: 30      // сколько минут после дождя возможна дуга
-    property real rainbowMaxSunAlt: 42   // солнце выше — радуга физически не видна
-    property real rainbowOpacity: 0.40   // заметность дуги (0..1) — тихо, не заставка
+    property int rainbowMinutes: 30      // how many minutes after rain the arc may appear
+    property real rainbowMaxSunAlt: 42   // sun higher — the rainbow is physically invisible
+    property real rainbowOpacity: 0.40   // arc visibility (0..1) — quiet, not a screensaver
 
-    // ---------- Интенсивность: частиц в секунду ----------
-    // Реальное число одновременных частиц ≈ rate * время жизни (с).
-    // Дождь (жизнь ~1.2 с): 150 → ~180 капель на экране.
+    // ---------- Intensity: particles per second ----------
+    // The actual number of simultaneous particles ≈ rate * lifetime (s).
+    // Rain (lifetime ~1.2 s): 150 → ~180 drops on screen.
     property int drizzleRate: 60
     property int rainRate: 150
     property int heavyRainRate: 260
-    property int thunderRate: 350         // гроза: ливень и гуще — плотный «стеной»
-    property int snowRate: 18            // снег живёт ~16 с: 18 → ~290 хлопьев
+    property int thunderRate: 350         // thunderstorm: downpour and denser — a solid "wall"
+    property int snowRate: 18            // snow lives ~16 s: 18 → ~290 flakes
 
-    // ---------- Внешний вид капель и снежинок ----------
-    property color rainColor: "#7fa9e6"   // дождь: синеватый, не белый
-    property real rainOpacity: 0.30       // заметность капель (0..1, меньше — тише)
-    property real rainLength: 20          // длина капли, px
-    property color snowColor: "#e8f1ff"   // снежинки: чуть холодный белый
-    property real snowOpacity: 0.42       // заметность снега
-    property real snowSize: 11            // базовый размер хлопья, px
+    // ---------- Look of drops and flakes ----------
+    property color rainColor: "#7fa9e6"   // rain: bluish, not white
+    property real rainOpacity: 0.30       // drop visibility (0..1, lower — subtler)
+    property real rainLength: 20          // drop length, px
+    property color snowColor: "#e8f1ff"   // flakes: slightly cool white
+    property real snowOpacity: 0.42       // snow visibility
+    property real snowSize: 11            // base flake size, px
 }

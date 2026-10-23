@@ -1,39 +1,39 @@
 # ============================================================
-# Погодный оверлей (atmospheric) — фрагменты для hyprland.conf
+# Weather overlay (atmospheric) — snippets for hyprland.conf
 #
-# Замените /path/to/atmospheric на фактический путь к папке проекта
-# (после `atmospheric install` автозапуск уже прописан автоматически).
+# Replace /path/to/atmospheric with the actual path to the project folder
+# (after `atmospheric install` the autostart is already set up).
 # ============================================================
 
-# --- Этап 5: автозапуск -------------------------------------
-# Быстрый запуск конфига из директории (не обязательно класть в ~/.config):
+# --- Step 5: autostart -------------------------------------
+# Quick config launch from a directory (no need to put it in ~/.config):
 exec-once = quickshell -p /path/to/atmospheric
 
-# Альтернатива, если конфиг положен в ~/.config/quickshell/atmospheric:
+# Alternative if the config lives in ~/.config/quickshell/atmospheric:
 # exec-once = quickshell -c atmospheric
 
-# --- Этап 4: хоткеи через IPC Quickshell --------------------
-# qs нужен -p <путь к конфигу>: без него клиент ищет конфиг "default"
-# в XDG-каталогах и падает с "Could not find "default" config directory...".
+# --- Step 4: hotkeys via Quickshell IPC --------------------
+# qs needs -p <config path>: without it the client looks for the "default"
+# config in XDG directories and fails with "Could not find "default" config directory...".
 
-# Вкл/выкл оверлея
+# Toggle the overlay
 bind = SUPER, F8, exec, qs -p /path/to/atmospheric ipc call weather toggle
-# Принудительно обновить погоду (например, после сна)
+# Force a weather refresh (e.g. after sleep)
 bind = SUPER SHIFT, F8, exec, qs -p /path/to/atmospheric ipc call weather refresh
 
-# Состояние погоды удобно смотреть руками в терминале:
+# Weather state is easy to check by hand in a terminal:
 #   qs -p /path/to/atmospheric ipc call weather status
 #   qs -p /path/to/atmospheric ipc show
 
-# --- Этап 5: скриншот без оверлея ---------------------------
-# grim снимет layer-слой в кадр, поэтому atmospheric shot гасит оверлей
-# до захвата и включает обратно после (регион + буфер обмена).
+# --- Step 5: screenshot without the overlay ---------------------------
+# grim captures the layer into the frame, so atmospheric shot turns the
+# overlay off before the capture and back on after (region + clipboard).
 bind = , Print, exec, atmospheric shot --region --clipboard
-# Весь экран активного монитора → в буфер / в файл:
+# Full screen of the active monitor → clipboard / file:
 # bind = CTRL, Print, exec, atmospheric shot --full --clipboard
 # bind = CTRL, Print, exec, atmospheric shot --full --out ~/Pictures/shot_$(date +%H%M%S).png
-# Если у вас селектор области Quickshell:
+# If you use the Quickshell region selector:
 # bind = SUPER SHIFT, S, exec, atmospheric shot --qs-region
 
-# --- Этап 4 (бонус): автоскрытие в играх и mpv --------------
+# --- Step 4 (bonus): autohide in games and mpv --------------
 exec-once = bash /path/to/atmospheric/scripts/autohide-games.sh

@@ -1,12 +1,12 @@
-# atmospheric — проверки, установка и релизный архив.
+# atmospheric — checks, install and release archive.
 #
-#   make            # то же, что make check
+#   make            # same as make check
 #   make check      # bash -n + qmllint + cargo check
-#   make install    # ./install.sh (PATH + автозапуск + город)
-#   make uninstall  # убрать команду из PATH и автозапуск
-#   make run        # запустить оверлей
-#   make dist       # dist/atmospheric-<версия>.tar.gz
-#   make clean      # убрать dist/ и target/
+#   make install    # ./install.sh (PATH + autostart + city)
+#   make uninstall  # remove the command from PATH and autostart
+#   make run        # start the overlay
+#   make dist       # dist/atmospheric-<version>.tar.gz
+#   make clean      # remove dist/ and target/
 
 VERSION := $(shell cat VERSION)
 QMLDIR  := $(shell qtpaths6 --query QT_INSTALL_QML 2>/dev/null || echo /usr/lib/qt6/qml)
@@ -23,14 +23,14 @@ check: qml rust
 	@bash -n atmospheric
 	@bash -n install.sh
 	@bash -n scripts/*.sh
-	@echo "✓ bash: синтаксис OK"
-	@echo "✓ версия: $(VERSION)"
+	@echo "✓ bash: syntax OK"
+	@echo "✓ version: $(VERSION)"
 
 qml:
 	@if [ -z "$(QMLLINT)" ]; then \
-		echo "! qmllint не найден — QML-линт пропущен"; \
+		echo "! qmllint not found — QML lint skipped"; \
 	else \
-		$(QMLLINT) -I $(QMLDIR) $(QML) && echo "✓ QML: линт OK"; \
+		$(QMLLINT) -I $(QMLDIR) $(QML) && echo "✓ QML: lint OK"; \
 	fi
 
 rust:

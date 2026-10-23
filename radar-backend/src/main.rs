@@ -1,21 +1,22 @@
 // ============================================================
-// atmospheric-radar — демон радара RainViewer для оверлея atmospheric.
+// atmospheric-radar — RainViewer radar daemon for the atmospheric overlay.
 //
-// Зачем Rust, а не Canvas в QML: Quickshell рисует Canvas только внутри
-// видимого PanelWindow, а Weather/Radar висят в Scope (без окна) —
-// onPaint не вызывался и тайл не декодируется. Здесь декод PNG идёт
-// вне рендера (вся логика — в lib.rs).
+// Why Rust instead of Canvas in QML: Quickshell only draws Canvas inside
+// a visible PanelWindow, while Weather/Radar live in a Scope (no window) —
+// onPaint never fires and the tile is never decoded. Here the PNG decode
+// runs outside the render (all logic lives in lib.rs).
 //
-// Роль демона: unix-сервер. Цикл раз в секунду:
-//   1) принимает новых клиентов QML и сразу отдаёт текущий срез;
-//   2) по расписанию опрашивает RainViewer (список кадров → тайл →
-//      декод → alpha-пиксель точки);
-//   3) рассылает обновлённый JSON всем клиентам.
+// Daemon role: unix server. Loop once per second:
+//   1) accepts new QML clients and immediately sends the current state;
+//   2) polls RainViewer on schedule (frame list → tile → decode →
+//      point alpha pixel);
+//   3) broadcasts the updated JSON to all clients.
 //
-// Одиночка: если по пути сокета уже кто-то слушает — второй экземпляр
-// выходит (нужно при hot-reload QML, когда старый демон ещё не убит).
+// Singleton: if someone already listens on the socket path — a second
+// instance exits (needed for QML hot-reload, when the old daemon is
+// not yet killed).
 //
-// Аргументы: <сокет> [широта] [долгота] [опрос_мин] [свежесть_мин]
+// Args: <socket> [lat] [lon] [poll_minutes] [max_age_minutes]
 // ============================================================
 use std::io::{ErrorKind, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -33,17 +34,17 @@ fn main() {
     let lon: f64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(36.0625);
     let poll_minutes: f64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(3.0);
     let max_age: i64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(25);
-    // Не даём устроить шторм запросов при опросе 0 в конфиге.
+    // Guard against request storms when poll is 0 in the config.
     let poll_secs = (poll_minutes * 60.0).max(30.0);
 
-    // ---------- одиночка ----------
+    // ---------- singleton ----------
     match UnixStream::connect(&sock_path) {
         Ok(_) => {
-            eprintln!("[radar] демон уже запущен ({}) — выхожу", sock_path.display());
+            eprintln!("[radar] daemon already running ({}) — exiting", sock_path.display());
             return;
         }
         Err(_) => {
-            // Файл сокета остался от убитого демона — убираем.
+            // Stale socket file left by a killed daemon — remove it.
             let _ = std::fs::remove_file(&sock_path);
         }
     }
@@ -57,20 +58,20 @@ fn main() {
             return;
         }
     };
-    // Неблокирующий accept: цикл не должен вставать на подключении.
+    // Non-blocking accept: the loop must not stall on connections.
     let _ = listener.set_nonblocking(true);
 
     eprintln!(
-        "[radar] старт: точка ({lat}, {lon}), опрос {poll_minutes} мин, свежесть {max_age} мин, сокет {}",
+        "[radar] start: point ({lat}, {lon}), poll {poll_minutes} min, max age {max_age} min, socket {}",
         sock_path.display()
     );
 
     let mut clients: Vec<UnixStream> = Vec::new();
     let mut state = RadarState::default();
-    let mut next_poll = Instant::now(); // первый опрос — сразу
+    let mut next_poll = Instant::now(); // first poll immediately
 
     loop {
-        // 1) новые подключения QML: отдаём текущий срез
+        // 1) new QML connections: send the current state
         loop {
             match listener.accept() {
                 Ok((stream, _)) => {
@@ -86,7 +87,7 @@ fn main() {
             }
         }
 
-        // 2) опрос RainViewer по расписанию
+        // 2) poll RainViewer on schedule
         if Instant::now() >= next_poll {
             let new = poll_once(lat, lon, max_age, &state);
             if new.frame_ms != state.frame_ms
@@ -94,22 +95,22 @@ fn main() {
                 || new.precip != state.precip
             {
                 eprintln!(
-                    "[radar] кадр {} ({} мин назад): осадки {}, интенсивность {:.2}{}",
+                    "[radar] frame {} ({} min ago): precip {}, intensity {:.2}{}",
                     new.frame_ms,
                     new.age_minutes,
-                    if new.precip { "да" } else { "нет" },
+                    if new.precip { "yes" } else { "no" },
                     new.intensity,
                     if new.error.is_empty() {
                         String::new()
                     } else {
-                        format!(", ошибка {}", new.error)
+                        format!(", error {}", new.error)
                     }
                 );
             }
             state = new;
 
-            // 3) рассылка всем клиентам; отвалившиеся (QML перезагрузился)
-            // уходят из списка по EPIPE на следующем опросе
+            // 3) broadcast to all clients; dropped ones (QML reloaded)
+            // leave the list on EPIPE at the next poll
             clients.retain(|c| send_line(c, &state).is_ok());
 
             next_poll = Instant::now() + Duration::from_secs_f64(poll_secs);
@@ -119,11 +120,11 @@ fn main() {
     }
 }
 
-/// Одна JSON-строка состояния + '\n' (SplitParser на той стороне режет по \n).
+/// One JSON state line + '\n' (SplitParser on the other side splits on \n).
 fn send_line(stream: &UnixStream, st: &RadarState) -> std::io::Result<()> {
     let mut line = serde_json::to_string(st).map_err(std::io::Error::other)?;
     line.push('\n');
-    let mut w = stream; // Write реализован для &UnixStream
+    let mut w = stream; // Write is implemented for &UnixStream
     w.write_all(line.as_bytes())?;
     w.flush()
 }

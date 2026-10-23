@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # ============================================================
-# atmospheric — единая команда погодного оверлея.
+# atmospheric — single command for the weather overlay.
 #
-# Установка (один раз, любая графика — Wayland или X11):
+# Install once (Wayland or X11):
 #   bash /path/to/atmospheric/install.sh
 #
-# Дальше:
-#   atmospheric                 # запустить (или включить, если уже работает)
-#   atmospheric rain            # тест: дождь
-#   atmospheric snow            # тест: снег
-#   atmospheric auto            # вернуть реальную погоду
+# Then:
+#   atmospheric                 # start (or enable if already running)
+#   atmospheric rain            # test: rain
+#   atmospheric snow            # test: snow
+#   atmospheric auto            # back to real weather
 #   atmospheric status
-#   atmospheric city            выбрать город (TUI)
+#   atmospheric city            pick a city (TUI)
 # ============================================================
 set -euo pipefail
 
@@ -25,49 +25,48 @@ LOG="${TMPDIR:-/tmp}/atmospheric.log"
 
 usage() {
     cat <<EOF
-atmospheric $VERSION — погодный оверлей (Quickshell)
+atmospheric $VERSION — weather overlay (Quickshell)
 
-Команды:
-  start | run          запустить (по умолчанию); если уже запущен — включить
-  stop                 остановить
-  restart              перезапустить
-  status               среда, состояние погоды, тест-режим, запущен ли оверлей
-  toggle | on | off    показать / скрыть оверлей
-  shot [опции]         скриншот без оверлея: --region, --full, --clipboard, --out FILE
-                       (дождь не попадёт в кадр; справка: atmospheric shot --help)
-  city                 выбрать город (TUI): локальный список + поиск любого
-                       города мира (клавиша /, Nominatim) или координаты
-  autostart [on|off]   автозапуск под текущую среду (статус — по умолчанию)
-  uninstall            убрать команду из PATH и автозапуск (проект остаётся)
-  version              версия
+Commands:
+  start | run        launch (default); if running — enable
+  stop | restart     stop / restart
+  status             session, weather, test mode, running state
+  toggle | on | off  show / hide the overlay
+  shot [opts]        screenshot without the overlay: --region, --full,
+                     --clipboard, --out FILE (atmospheric shot --help)
+  city               pick a city (TUI): bundled list + search for any city
+                     in the world (key /, Nominatim) or plain coordinates
+  autostart [on|off] autostart for the current session (status by default)
+  uninstall          remove the command from PATH and autostart (keeps the project)
+  version            version
 
-Тест эффектов (не трогает реальные данные):
+Effect tests (do not touch real data):
   rain | heavy-rain | drizzle | snow | fog | fog-dense | blizzard | sleet
   hail | thunder | rainbow | cloudy | night | clear
-  auto | off-test      снять тест, вернуть реальную погоду
-  Пример: atmospheric snow
+  auto | off-test    drop the test, back to real weather
+  Example: atmospheric snow
 
-Установка (любая графика — Wayland или X11):
-  install                команда в PATH + автозапуск под текущую среду
-                         (спросит город: Enter — выбрать любой город мира,
-                         q — оставить текущий; искать может и atmospheric city)
-  install --no-autostart только команда в PATH, автозапуск не трогать
-  install --system       поставить команду в /usr/local/bin (через sudo)
+Install (Wayland or X11):
+  install                command in PATH + autostart for the current session
+                         (asks for the city: Enter — pick any city in the
+                         world, q — keep the current one)
+  install --no-autostart only the command in PATH, no autostart
+  install --system       install the command to /usr/local/bin (via sudo)
 
-Поддерживается:
+Supported:
   Wayland: Hyprland, Sway, niri, river, Wayfire, labwc, KDE Plasma
-           (нужен wlr-layer-shell; GNOME Wayland — НЕ поддерживается)
-  X11:     i3, bspwm, Openbox, XFCE, KDE/GNOME (Xorg), любой WM
-           (для прозрачности в голых WM нужен picom)
+           (needs wlr-layer-shell; GNOME Wayland is NOT supported)
+  X11:     i3, bspwm, Openbox, XFCE, KDE/GNOME (Xorg), any WM
+           (bare WMs need picom for transparency)
 
-Лог запуска: $LOG
+Log: $LOG
 EOF
 }
 
-# --- состояние -------------------------------------------------
-# PID инстансов НАШЕГО конфига. Якорь ^ не цепляет случайные команды, в которых
-# путь встретился внутри (например, сам вызов qs -p ... ipc ...), а фильтр " ipc "
-# отсекает клиент qs — он выглядит так же, как инстанс, но это не он.
+# --- state -----------------------------------------------------
+# PIDs of instances running OUR config. The ^ anchor ignores incidental
+# commands that merely contain the path (e.g. qs -p ... ipc ...), and the
+# " ipc " filter drops the qs client — it looks like an instance but isn't.
 instance_pids() {
     local p c
     for p in $(pgrep -f "^([^ ]*/)?(quickshell|qs) -p $DIR( .*)?$" 2>/dev/null) \
@@ -84,18 +83,18 @@ is_running() {
     [[ -n "$(instance_pids)" ]]
 }
 
-# Радар-демон (Radar.qml) — отдельный процесс. В норме quickshell убивает его
-# деструктором Process вместе с собой, но при гонке одиночек (hot-reload
-# спавнит нового демона, пока старый ещё не убит) «победитель» выходит с ppid=1
-# и переживает шелл — тогда его нужно добрать руками.
+# The radar daemon (Radar.qml) is a separate process. Normally quickshell
+# kills it with its Process destructor, but in a hot-reload race (a new
+# daemon is spawned before the old one dies) the "winner" reparents to
+# ppid=1 and outlives the shell — then it must be reaped manually.
 stop_radar_daemons() {
     local pids
     pids="$(pgrep -f "$DIR/radar-backend/target/release/atmospheric-radar" 2>/dev/null || true)"
     [[ -n "$pids" ]] && kill $pids 2>/dev/null || true
 }
 
-# Останавливает шелл и ждёт, пока он честно уйдёт (Process-деструктор убьёт
-# своего демона), затем глушит демонов-сирот. Возвращает 1, если шелла не было.
+# Stops the shell and waits for it to exit cleanly (its Process destructor
+# kills its daemon), then reaps orphan daemons. Returns 1 if none was running.
 stop_instance() {
     local pids i
     pids="$(instance_pids)"
@@ -106,8 +105,8 @@ stop_instance() {
         sleep 0.1
     done
     stop_radar_daemons
-    # Страховка от гонки: пока шелл завершался, его watchdog мог успеть
-    # перезапустить демона — добиваем и таких сирот (действие идемпотентно).
+    # Race insurance: while the shell was exiting, its watchdog may have
+    # restarted the daemon — reap those orphans too (idempotent).
     sleep 0.3
     stop_radar_daemons
     return 0
@@ -115,64 +114,64 @@ stop_instance() {
 
 need_qs() {
     if ! command -v quickshell >/dev/null 2>&1; then
-        echo "✗ quickshell не найден в PATH" >&2
+        echo "✗ quickshell not found in PATH" >&2
         exit 1
     fi
     if ! command -v qs >/dev/null 2>&1; then
-        echo "✗ qs (клиент IPC quickshell) не найден в PATH" >&2
+        echo "✗ qs (quickshell IPC client) not found in PATH" >&2
         exit 1
     fi
 }
 
-# Запуск в фоне; $1 — необязательный тест-режим.
+# Start in the background; $1 — optional test mode.
 start_bg() {
     need_qs
     local mode="${1:-}"
     if [[ -n "$mode" ]]; then
         export ATMOSPHERIC_TEST="$mode"
     fi
-    # setsid — отдельная сессия: оверлей не умрёт вместе с группой процессов
-    # терминала/скрипта, из которого его запустили (nohup спасает только от SIGHUP).
+    # setsid — a separate session: the overlay won't die with the process
+    # group of the terminal/script that started it (nohup only survives SIGHUP).
     local -a runner=(nohup)
     command -v setsid >/dev/null 2>&1 && runner=(setsid nohup)
     "${runner[@]}" quickshell -p "$DIR" >"$LOG" 2>&1 </dev/null &
     sleep 1.2
     if is_running; then
         if [[ -n "$mode" ]]; then
-            echo "✓ Запущено с тестом: $mode (снять: atmospheric auto)"
+            echo "✓ Started with test: $mode (drop: atmospheric auto)"
         else
-            echo "✓ Запущено (реальная погода)"
+            echo "✓ Started (real weather)"
         fi
-        echo "  лог: $LOG"
+        echo "  log: $LOG"
     else
-        echo "✗ Не запустился, хвост лога:" >&2
+        echo "✗ Failed to start, log tail:" >&2
         tail -n 25 "$LOG" >&2 || true
         exit 1
     fi
 }
 
-ipc_ok() {   # ipc_ok <args...> — печатает ответ, код возврата сохраняется
-    # -p обязателен: без пути к конфигу qs ищет конфиг "default" в XDG
-    # и падает с "Could not find "default" config directory...".
+ipc_ok() {   # ipc_ok <args...> — prints the reply, keeps the exit code
+    # -p is required: without a config path qs looks for the "default" config
+    # in XDG and dies with "Could not find "default" config directory...".
     qs -p "$DIR" ipc call "$TARGET" "$@"
 }
 
-# --- скриншот без дождя -----------------------------------------
-# Оверлей гасится ДО захвата и включается обратно после (если был включён).
-# Пока снимок делает grim/maim/scrot/import или селектор области Quickshell,
-# окно уже скрыто — дождь не попадает ни в файл, ни в буфер обмена.
-# На Hyprland ждём фактического исчезновения слоя (hyprctl layers), иначе
-# используем короткую паузу.
+# --- screenshot without the rain --------------------------------
+# The overlay is disabled BEFORE capture and re-enabled after (if it was on).
+# By the time grim/maim/scrot/import or the Quickshell region selector runs,
+# the window is already hidden — no rain in the file or the clipboard.
+# On Hyprland we wait for the layer to actually vanish (hyprctl layers),
+# otherwise we fall back to a short pause.
 _shot_was_on=0
 _shot_keep=0
 _shot_tmp=""
 _shot_lock="${TMPDIR:-/tmp}/atmospheric-shot.lockdir"
-_shot_geom=""        # файл с геометрией, куда пишет заранее запущенный slurp
-_shot_slurp_pid=""   # его PID
+_shot_geom=""        # file where a pre-launched slurp writes geometry
+_shot_slurp_pid=""   # its PID
 
-# Снимки сериализуются каталогом, а не flock: flock наследуется дочерними
-# процессами, и `wl-copy` (он остаётся жить, пока владеет буфером) держал бы
-# блокировку вечно — следующие снимки вставали в очередь на 5 минут.
+# Shots are serialized by a directory, not flock: flock is inherited by
+# child processes, and `wl-copy` (which stays alive while it owns the
+# buffer) would hold the lock forever — later shots would queue for 5 min.
 _shot_lock_acquire() {
     local i pid
     for ((i = 0; i < 3000; i++)); do
@@ -180,7 +179,7 @@ _shot_lock_acquire() {
             printf '%s\n' "$$" > "$_shot_lock/pid"
             return 0
         fi
-        # Владелец мог умереть и оставить каталог за собой — забираем.
+        # The owner may have died and left the directory behind — take it.
         pid="$(cat "$_shot_lock/pid" 2>/dev/null || true)"
         if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
             rm -rf -- "$_shot_lock"
@@ -188,7 +187,7 @@ _shot_lock_acquire() {
         fi
         sleep 0.1
     done
-    echo "atmospheric shot: другой снимок ещё идёт (ждал 5 мин)" >&2
+    echo "atmospheric shot: another shot is in progress (waited 5 min)" >&2
     return 1
 }
 
@@ -199,8 +198,8 @@ _shot_lock_release() {
 }
 
 _shot_restore() {
-    # Выделение в фоне могло пережить Ctrl+C — гасим, иначе slurp висел бы
-    # на экране до ручного Escape.
+    # The background selection may outlive Ctrl+C — kill it, otherwise slurp
+    # would sit on screen until a manual Escape.
     if [[ -n "${_shot_slurp_pid:-}" ]]; then
         kill "$_shot_slurp_pid" 2>/dev/null || true
         _shot_slurp_pid=""
@@ -215,10 +214,10 @@ _shot_restore() {
     fi
 }
 
-# Гасим оверлей и ждём, пока кадр действительно очистится. По попиксельному
-# замеру: через 0.26 с после скрытия дождь ещё в кадре (1392 px отличия),
-# чисто только к ~0.63 с — слой уходит из hyprctl layers раньше, чем гаснет,
-# поэтому одного опроса недостаточно, нужна и пауза.
+# Hide the overlay and wait for the frame to actually clear. Per-pixel
+# measurements: 0.26 s after hiding, rain is still in the frame (1392 px
+# differ); it only clears by ~0.63 s — the layer leaves hyprctl layers
+# before it fades, so polling alone is not enough, a pause is needed too.
 _shot_hide_overlay() {
     local delay="${1:-0.6}"
     _shot_was_on=0
@@ -229,31 +228,31 @@ _shot_hide_overlay() {
     wait_overlay_hidden "$delay"
 }
 
-_layer_present() {  # $1 — namespace слоя
+_layer_present() {  # $1 — layer namespace
     hyprctl layers 2>/dev/null | grep -q -- "$1"
 }
 
 wait_overlay_hidden() {
     local delay="${1:-0.5}" i
     if command -v hyprctl >/dev/null 2>&1 && [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
-        for ((i = 0; i < 60; i++)); do          # до 3 с
+        for ((i = 0; i < 60; i++)); do          # up to 3 s
             _layer_present "quickshell-weather" || break
             sleep 0.05
         done
     fi
-    # hyprctl может убрать слой из списка раньше, чем догорит анимация
-    # исчезновения, — даём кадру устояться, иначе дождь ещё попадёт в снимок.
+    # hyprctl may drop the layer from the list before the fade-out animation
+    # finishes — give the frame time to settle, or rain could still get in.
     sleep "$delay"
 }
 
 wait_selector_closed() {
     local i
     if command -v hyprctl >/dev/null 2>&1 && [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
-        for ((i = 0; i < 80; i++)); do          # ждём открытия (до 4 с)
+        for ((i = 0; i < 80; i++)); do          # wait to open (up to 4 s)
             _layer_present "quickshell:regionSelector" && break
             sleep 0.05
         done
-        for ((i = 0; i < 7200; i++)); do        # ждём выбора (до 6 мин)
+        for ((i = 0; i < 7200; i++)); do        # wait for the pick (up to 6 min)
             _layer_present "quickshell:regionSelector" || return 0
             sleep 0.05
         done
@@ -269,48 +268,48 @@ do_shot() {
             -r|--region)    region=1 ;;
             -f|--full)      region=0 ;;
             -c|--clipboard) clipboard=1 ;;
-            -o|--out)       out="${2:?--out требует путь к файлу}"; shift ;;
-            --monitor)      monitor="${2:?--monitor требует имя выхода}"; shift ;;
-            --delay)        delay="${2:?--delay требует секунды}"; shift ;;
+            -o|--out)       out="${2:?--out requires a file path}"; shift ;;
+            --monitor)      monitor="${2:?--monitor requires an output name}"; shift ;;
+            --delay)        delay="${2:?--delay requires seconds}"; shift ;;
             --qs-region)
-                # Имя конфига можно не указывать — возьмём из запущенного qs -c NAME.
+                # The config name may be omitted — taken from a running qs -c NAME.
                 qs_cfg="auto"
                 if [[ $# -gt 1 && "${2:0:1}" != "-" ]]; then qs_cfg="$2"; shift; fi ;;
             --keep-hidden)  _shot_keep=1 ;;
             --)             shift; break ;;
             -h|--help)
                 cat <<'EOF'
-atmospheric shot — скриншот без погодного оверлея.
+atmospheric shot — screenshot without the weather overlay.
 
-  --region, -r        выделить область (slurp; на X11 — maim -s)
-  --full, -f          весь экран (по умолчанию)
-  --clipboard, -c     положить снимок в буфер (wl-copy / xclip)
-  --out FILE, -o FILE сохранить в FILE (иначе ~/Pictures/Screenshot_*.png)
-  --monitor NAME      снимать конкретный монитор (grim -o)
-  --delay SEC         пауза после скрытия, если нет hyprctl (0.6)
-  --qs-region CFG     регион через селектор Quickshell (qs -c CFG)
-  --keep-hidden       не включать оверлей обратно
+  --region, -r        pick a region (slurp; on X11 — maim -s)
+  --full, -f          whole screen (default)
+  --clipboard, -c     put the shot on the clipboard (wl-copy / xclip)
+  --out FILE, -o FILE save to FILE (else ~/Pictures/Screenshot_*.png)
+  --monitor NAME      capture a specific monitor (grim -o)
+  --delay SEC         pause after hiding when there is no hyprctl (0.6)
+  --qs-region CFG     region via the Quickshell selector (qs -c CFG)
+  --keep-hidden       don't re-enable the overlay
 EOF
                 return 0 ;;
-            -*)             echo "atmospheric shot: неизвестная опция: $1" >&2; return 2 ;;
+            -*)             echo "atmospheric shot: unknown option: $1" >&2; return 2 ;;
             *)              out="$1" ;;
         esac
         shift
     done
 
-    # Восстановление — в любом случае: ошибка, Ctrl+C, отмена выделения.
+    # Restore in any case: error, Ctrl+C, cancelled selection.
     trap '_shot_restore' EXIT
 
-    # На одну клавишу часто вешают два бинда (регион + весь экран): без
-    # сериализации второй включил бы оверлей посреди выделения первого,
-    # и в кадр снова попал бы дождь.
+    # One key often has two binds (region + full screen): without
+    # serialization the second would re-enable the overlay in the middle of
+    # the first one's selection, and rain would get into the frame again.
     _shot_lock_acquire || return 1
     _shot_was_on=0
 
-    # Регион на Wayland: slurp запускаем ДО гашения — пока пользователь
-    # выделяет область, оверлей гаснет в фоне. Выделение открывается сразу
-    # (~0.1 с), а не после паузы на скрытие (~0.8 с), но снимок всё равно
-    # делается уже с очищенным кадром.
+    # Region on Wayland: slurp is launched BEFORE hiding — while the user
+    # picks a region, the overlay fades out in the background. The selection
+    # opens right away (~0.1 s) instead of after the hide pause (~0.8 s),
+    # but the shot is still taken from an already cleared frame.
     if [[ -z "$qs_cfg" && "$region" == "1" && -n "${WAYLAND_DISPLAY:-}" ]] \
         && command -v grim >/dev/null 2>&1 && command -v slurp >/dev/null 2>&1; then
         _shot_geom="$(mktemp "${TMPDIR:-/tmp}/atmospheric-geom-XXXXXX")"
@@ -325,14 +324,15 @@ EOF
             qs_cfg="$(pgrep -af '(^|/)(qs|quickshell) -c ' 2>/dev/null \
                 | awk '{for (i = 1; i <= NF; i++) if ($i == "-c") { print $(i+1); exit }}')"
             if [[ -z "$qs_cfg" ]]; then
-                echo "✗ Не нашёл запущенный Quickshell с именованным конфигом (-c NAME)" >&2
+                echo "✗ No running Quickshell with a named config (-c NAME) found" >&2
                 return 1
             fi
         fi
-        # Селектор Quickshell сам кладёт результат в буфер/файл; нам важно
-        # только не дать ему заморозить кадр с дождём и дождаться закрытия.
+        # The Quickshell selector puts the result on the clipboard/file
+        # itself; we only must not let it freeze a frame with rain and must
+        # wait for it to close.
         qs -c "$qs_cfg" ipc call region screenshot >/dev/null 2>&1 || {
-            echo "✗ Не удалось открыть селектор области (qs -c $qs_cfg)" >&2
+            echo "✗ Failed to open the region selector (qs -c $qs_cfg)" >&2
             return 1
         }
         wait_selector_closed
@@ -347,20 +347,20 @@ EOF
         if [[ "$region" == "1" ]]; then
             local geom rc=0
             if [[ -n "$_shot_geom" ]]; then
-                # slurp уже запущен — дожидаемся выбора (или отмены).
+                # slurp is already running — wait for the pick (or cancel).
                 wait "$_shot_slurp_pid" || rc=$?
                 geom="$(cat "$_shot_geom" 2>/dev/null || true)"
                 rm -f -- "$_shot_geom"; _shot_geom=""; _shot_slurp_pid=""
                 if (( rc != 0 )) || [[ -z "$geom" ]]; then
-                    echo "Отменено" >&2
+                    echo "Cancelled" >&2
                     return 1
                 fi
             else
                 command -v slurp >/dev/null 2>&1 || {
-                    echo "✗ Для --region нужен slurp (пакет slurp)" >&2
+                    echo "✗ --region needs slurp (package: slurp)" >&2
                     return 1
                 }
-                geom="$(slurp)" || { echo "Отменено" >&2; return 1; }
+                geom="$(slurp)" || { echo "Cancelled" >&2; return 1; }
             fi
             gargs+=(-g "$geom")
         fi
@@ -378,7 +378,7 @@ EOF
     elif command -v import >/dev/null 2>&1; then
         import -window root "$_shot_tmp"
     else
-        echo "✗ Нет grim (Wayland) или maim/scrot/import (X11)" >&2
+        echo "✗ No grim (Wayland) or maim/scrot/import (X11) found" >&2
         return 1
     fi
 
@@ -388,12 +388,12 @@ EOF
         elif command -v xclip >/dev/null 2>&1; then
             xclip -selection clipboard -t image/png -i "$_shot_tmp"
         else
-            echo "! Нет wl-copy/xclip — снимок будет сохранён в файл" >&2
+            echo "! No wl-copy/xclip — the shot will be saved to a file" >&2
             clipboard=0
         fi
     fi
 
-    # Файл — если задан явно или если буфер недоступен.
+    # Save to a file when one was given explicitly or the clipboard is unavailable.
     if [[ -n "$out" || "$clipboard" == "0" ]]; then
         out="${out:-$HOME/Pictures/Screenshot_$(date +%F_%H-%M-%S).png}"
         mkdir -p -- "$(dirname -- "$out")"
@@ -403,8 +403,8 @@ EOF
     fi
 }
 
-# --- среда: Wayland/X11 и DE/WM ---------------------------------
-# Всё, что ниже, нужно для установки автозапуска в правильное место.
+# --- session: Wayland/X11 and DE/WM -----------------------------
+# Everything below exists to install autostart into the right place.
 detect_session() {
     case "${XDG_SESSION_TYPE:-}" in
         wayland|x11) printf '%s\n' "$XDG_SESSION_TYPE"; return 0 ;;
@@ -416,7 +416,7 @@ detect_session() {
 
 detect_desktop() {
     local d
-    # Самая надёжная идентификация: переменные, которые ставит сам композитор.
+    # Most reliable identification: variables the compositor sets itself.
     [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] && { echo hyprland; return 0; }
     [[ -n "${SWAYSOCK:-}" ]] && { echo sway; return 0; }
     [[ -n "${NIRI_SOCKET:-}" ]] && { echo niri; return 0; }
@@ -450,7 +450,7 @@ detect_desktop() {
     esac
 }
 
-# Для X11 имя WM можно спросить у самого X-сервера (если есть xprop).
+# On X11 the WM name can be asked from the X server itself (needs xprop).
 detect_x11_wm() {
     command -v xprop >/dev/null 2>&1 || { echo ""; return 0; }
     local id name
@@ -461,23 +461,23 @@ detect_x11_wm() {
     echo "${name,,}"
 }
 
-# Краткое человеческое описание среды (для status/install).
+# Short human-readable session summary (for status/install).
 env_summary() {
     local sess desktop
     sess="$(detect_session)"
     desktop="$(detect_desktop)"
     [[ -z "$desktop" && "$sess" == "x11" ]] && desktop="$(detect_x11_wm)"
-    [[ -z "$desktop" ]] && desktop="неизвестный WM/DE"
+    [[ -z "$desktop" ]] && desktop="unknown WM/DE"
     echo "$sess · $desktop"
 }
 
-# Куда ставить автозапуск. Ключи:
-#   hyprland|sway|niri|river|wayfire|labwc — родные конфиги Wayland-WM
-#   i3|bspwm|openbox                         — родные конфиги X11-WM
-#   xdg                                      — ~/.config/autostart/*.desktop
-#                                              (KDE, GNOME, XFCE, Cinnamon,
-#                                               MATE, LXQt, Budgie, прочее)
-#   gnome-wayland                            — нельзя: нет wlr-layer-shell
+# Where to install autostart. Keys:
+#   hyprland|sway|niri|river|wayfire|labwc — native configs of Wayland WMs
+#   i3|bspwm|openbox                        — native configs of X11 WMs
+#   xdg                                     — ~/.config/autostart/*.desktop
+#                                             (KDE, GNOME, XFCE, Cinnamon,
+#                                              MATE, LXQt, Budgie, others)
+#   gnome-wayland                           — not possible: no wlr-layer-shell
 autostart_target() {
     local sess desktop
     sess="$(detect_session)"
@@ -513,8 +513,8 @@ autostart_file() {
     esac
 }
 
-# Команда автозапуска. На Wayland и X11 она одна и та же: quickshell сам
-# выбирает бэкенд по сессии (Wayland → layer-shell, X11 → обычное окно).
+# The autostart command is the same on Wayland and X11: quickshell picks
+# the backend by session (Wayland → layer-shell, X11 → a plain window).
 autostart_cmd() { printf 'quickshell -p %s' "$DIR"; }
 
 autostart_present() {
@@ -524,21 +524,21 @@ autostart_present() {
     case "$target" in
         wayfire) grep -qE "^atmospheric[[:space:]]*=[[:space:]]*quickshell -p" "$file" 2>/dev/null ;;
         niri)    grep -qE "spawn-at-startup.*quickshell.*-p.*$DIR" "$file" 2>/dev/null ;;
-        # Старые установки (без маркера) тоже считаем настроенными:
-        # достаточно точной команды с нашим путём.
+        # Old installs (without a marker) also count as configured:
+        # the exact command with our path is enough.
         *)       grep -qF "quickshell -p $DIR" "$file" 2>/dev/null ;;
     esac
 }
 
-# Убирает из конфига все строки нашего автозапуска: маркеры и команду
-# с точным путём к этому каталогу. Чужие строки не трогает.
+# Strips all our autostart lines from a config: markers and the command
+# with the exact path to this directory. Foreign lines are left alone.
 autostart_strip() {
     local file="$1" tmp esc
     tmp="$(mktemp)"
     esc="$(printf '%s' "$DIR" | sed 's/[][\\.*^$+?(){}|]/\\&/g')"
     grep -vE "atmospheric-autostart|^[[:space:]]*# --- atmospheric:|quickshell.*-p[[:space:]]+\"?${esc}\"?" \
         "$file" > "$tmp" || true
-    cat "$tmp" > "$file"   # сохраняем inode
+    cat "$tmp" > "$file"   # keep the inode
     rm -f "$tmp"
 }
 
@@ -551,76 +551,76 @@ do_autostart() {
     cmd="$(autostart_cmd)"
 
     if [[ "$sess" == "unknown" && "$action" != "status" ]]; then
-        echo "! Графическая сессия не определена (нет WAYLAND_DISPLAY/DISPLAY)" >&2
-        echo "  Автозапуск не настроен. Запустите из графики или поставьте вручную:" >&2
+        echo "! No graphical session detected (no WAYLAND_DISPLAY/DISPLAY)" >&2
+        echo "  Autostart not configured. Run from a graphical session or add manually:" >&2
         echo "    $cmd" >&2
         return 1
     fi
 
     if [[ "$target" == "gnome-wayland" && "$action" == "off" ]]; then
-        echo "Автозапуск не настроен (GNOME Wayland не поддерживается)"
+        echo "Autostart not configured (GNOME Wayland is not supported)"
         return 0
     fi
 
     if [[ "$target" == "gnome-wayland" && "$action" != "status" ]]; then
-        echo "✗ GNOME Wayland не поддерживается: у Mutter нет wlr-layer-shell," >&2
-        echo "  оверлею нечем лечь поверх окон. Варианты:" >&2
-        echo "  • сессия GNOME на X11 (Xorg) — там работает X11-бэкенд;" >&2
-        echo "  • другой Wayland-композитор: Hyprland, Sway, niri, river, KDE Plasma." >&2
-        echo "  Оверлей можно запускать вручную: $cmd" >&2
+        echo "✗ GNOME Wayland is not supported: Mutter has no wlr-layer-shell," >&2
+        echo "  so the overlay cannot layer over windows. Options:" >&2
+        echo "  • GNOME session on X11 (Xorg) — the X11 backend works there;" >&2
+        echo "  • another Wayland compositor: Hyprland, Sway, niri, river, KDE Plasma." >&2
+        echo "  You can still start the overlay manually: $cmd" >&2
         return 1
     fi
 
     case "$action" in
         status)
-            echo "Среда:     $(env_summary)"
+            echo "Session:    $(env_summary)"
             if [[ "$target" == "gnome-wayland" ]]; then
-                echo "Автозапуск: невозможен — GNOME Wayland (нет wlr-layer-shell)"
-                echo "Состояние: ✗ оверлей не сможет лечь поверх окон"
+                echo "Autostart: impossible — GNOME Wayland (no wlr-layer-shell)"
+                echo "State:     ✗ the overlay cannot layer over windows"
                 return 0
             fi
             if [[ "$target" == "xdg" ]]; then
-                echo "Автозапуск: XDG autostart ($file)"
+                echo "Autostart: XDG autostart ($file)"
                 case "$(detect_desktop)" in
                     kde|gnome|xfce|cinnamon|mate|lxqt|lxde|budgie) ;;
                     *) if [[ "$sess" == "x11" ]]; then
-                           echo "  (если WM не читает ~/.config/autostart — добавьте вручную:"
+                           echo "  (if your WM doesn't read ~/.config/autostart — add manually:"
                            echo "   $cmd)"
                        fi ;;
                 esac
             else
-                echo "Автозапуск: $target ($file)"
+                echo "Autostart: $target ($file)"
             fi
             if autostart_present "$target"; then
-                echo "Состояние: ✓ настроен"
+                echo "State:     ✓ configured"
             else
-                echo "Состояние: ✗ не настроен (atmospheric autostart on)"
+                echo "State:     ✗ not configured (atmospheric autostart on)"
             fi
             return 0
             ;;
 
         off)
             if ! autostart_present "$target"; then
-                echo "Автозапуск не настроен — нечего убирать"
+                echo "Autostart not configured — nothing to remove"
                 return 0
             fi
             if [[ "$target" == "xdg" ]]; then
                 rm -f "$file"
-                echo "✓ Автозапуск убран: $file"
+                echo "✓ Autostart removed: $file"
                 return 0
             fi
             if [[ -f "$file" ]]; then
                 bak="$file.bak-atmospheric-$(date +%Y%m%d-%H%M%S-%N)"
                 cp -a "$file" "$bak"
                 autostart_strip "$file"
-                echo "✓ Автозапуск убран (бэкап: $(basename "$bak"))"
+                echo "✓ Autostart removed (backup: $(basename "$bak"))"
             fi
             return 0
             ;;
 
         on)
             if autostart_present "$target"; then
-                echo "✓ Автозапуск уже настроен: $file"
+                echo "✓ Autostart already configured: $file"
                 return 0
             fi
             mkdir -p "$(dirname "$file")"
@@ -630,16 +630,16 @@ do_autostart() {
 [Desktop Entry]
 Type=Application
 Name=Atmospheric weather overlay
-Comment=Погодный оверлей Quickshell (atmospheric)
+Comment=Quickshell weather overlay (atmospheric)
 Exec=$cmd
 Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
-                echo "✓ Автозапуск: $file"
+                echo "✓ Autostart: $file"
                 return 0
             fi
 
-            # Резервная копия перед правкой пользовательского конфига.
+            # Backup before editing a user config.
             if [[ -f "$file" ]]; then
                 bak="$file.bak-atmospheric-$(date +%Y%m%d-%H%M%S-%N)"
                 cp -a "$file" "$bak"
@@ -647,11 +647,11 @@ EOF
 
             case "$target" in
                 niri)
-                    marker="// atmospheric-autostart: погодный оверлей"
+                    marker="// atmospheric-autostart: weather overlay"
                     line="spawn-at-startup \"quickshell\" \"-p\" \"$DIR\""
                     printf '\n%s\n%s\n' "$marker" "$line" >> "$file" ;;
                 wayfire)
-                    # INI: ключ должен лежать в секции [autostart].
+                    # INI: the key must live in the [autostart] section.
                     if grep -qE '^\[autostart\]' "$file" 2>/dev/null; then
                         local tmp; tmp="$(mktemp)"
                         awk -v key="atmospheric = $cmd" '
@@ -668,31 +668,31 @@ EOF
                     fi ;;
                 river|labwc|bspwm|openbox)
                     [[ -f "$file" ]] || printf '#!/bin/sh\n' > "$file"
-                    printf '\n# atmospheric-autostart: погодный оверлей\n%s &\n' "$cmd" >> "$file"
+                    printf '\n# atmospheric-autostart: weather overlay\n%s &\n' "$cmd" >> "$file"
                     chmod +x "$file" ;;
                 hyprland)
-                    printf '\n# atmospheric-autostart: погодный оверлей\nexec-once = %s\n' "$cmd" >> "$file" ;;
+                    printf '\n# atmospheric-autostart: weather overlay\nexec-once = %s\n' "$cmd" >> "$file" ;;
                 sway)
-                    printf '\n# atmospheric-autostart: погодный оверлей\nexec %s\n' "$cmd" >> "$file" ;;
+                    printf '\n# atmospheric-autostart: weather overlay\nexec %s\n' "$cmd" >> "$file" ;;
                 i3)
-                    printf '\n# atmospheric-autostart: погодный оверлей\nexec --no-startup-id %s\n' "$cmd" >> "$file" ;;
+                    printf '\n# atmospheric-autostart: weather overlay\nexec --no-startup-id %s\n' "$cmd" >> "$file" ;;
             esac
 
             if [[ -n "${bak:-}" ]]; then
-                echo "✓ Автозапуск: $file (бэкап: $(basename "$bak"))"
+                echo "✓ Autostart: $file (backup: $(basename "$bak"))"
             else
-                echo "✓ Автозапуск: $file"
+                echo "✓ Autostart: $file"
             fi
             return 0
             ;;
 
         *)
-            echo "autostart: неизвестное действие '$action' (on|off|status)" >&2
+            echo "autostart: unknown action '$action' (on|off|status)" >&2
             return 2 ;;
     esac
 }
 
-# Подсказка по пакетному менеджеру: dep_hint <pacman> <apt> <dnf>.
+# Package manager hint: dep_hint <pacman> <apt> <dnf>.
 dep_hint() {
     if command -v pacman >/dev/null 2>&1; then printf 'pacman -S %s' "$1"
     elif command -v apt-get >/dev/null 2>&1; then printf 'sudo apt install %s' "$2"
@@ -701,7 +701,7 @@ dep_hint() {
     else printf '%s' "$1"; fi
 }
 
-# Кладёт ссылку в PATH; для /usr/local/bin при необходимости через sudo.
+# Puts a symlink into PATH; for /usr/local/bin uses sudo when needed.
 link_bin() {
     local src="$1" dst="$2"
     ln -sfn "$src" "$dst" 2>/dev/null && return 0
@@ -719,15 +719,15 @@ do_install() {
         case "$a" in
             --system)                  use_system="yes" ;;
             --no-autostart|--no-hyprland) want_autostart="no" ;;
-            --autostart|--hyprland)    want_autostart="yes" ;;  # старые имена — алиасы
+            --autostart|--hyprland)    want_autostart="yes" ;;  # legacy aliases
             -h|--help)                 usage; return 0 ;;
-            *) echo "install: неизвестный аргумент: $a" >&2; exit 2 ;;
+            *) echo "install: unknown argument: $a" >&2; exit 2 ;;
         esac
     done
 
-    # --- куда ставить команду -----------------------------------
-    # Приоритет: ATMOSPHERIC_BIN_DIR → --system → ~/.local/bin (если в PATH)
-    # → /usr/local/bin (если записываем) → ~/.local/bin с подсказкой.
+    # --- where to put the command --------------------------------
+    # Priority: ATMOSPHERIC_BIN_DIR → --system → ~/.local/bin (if in PATH)
+    # → /usr/local/bin (if writable) → ~/.local/bin with a hint.
     if [[ -n "${ATMOSPHERIC_BIN_DIR:-}" ]]; then
         BIN_DIR="$ATMOSPHERIC_BIN_DIR"
     elif [[ "$use_system" == "yes" ]]; then
@@ -746,133 +746,133 @@ do_install() {
 
     chmod +x "$SELF" 2>/dev/null || true
     if ! link_bin "$SELF" "$BIN"; then
-        echo "✗ Не удалось записать $BIN" >&2
+        echo "✗ Could not write $BIN" >&2
         if [[ "$BIN_DIR" != "$HOME/.local/bin" ]]; then
             BIN_DIR="$HOME/.local/bin"
             BIN="$BIN_DIR/atmospheric"
             mkdir -p "$BIN_DIR"
             ln -sfn "$SELF" "$BIN"
-            echo "→ Поставил в пользовательский каталог: $BIN"
+            echo "→ Installed into the user directory: $BIN"
         else
             return 1
         fi
     fi
-    echo "✓ Команда: $BIN -> $SELF"
+    echo "✓ Command: $BIN -> $SELF"
 
-    # --- зависимости -------------------------------------------
+    # --- dependencies -------------------------------------------
     if command -v quickshell >/dev/null 2>&1; then
-        echo "✓ quickshell найден"
+        echo "✓ quickshell found"
     else
-        echo "✗ quickshell НЕ найден — поставьте его:"
-        echo "    Arch:   yay -S quickshell-git   (или pacman -S quickshell)"
-        echo "    прочее: $(dep_hint quickshell quickshell quickshell)  (см. quickshell.outfoxxed.me)"
+        echo "✗ quickshell NOT found — install it:"
+        echo "    Arch:   yay -S quickshell-git   (or pacman -S quickshell)"
+        echo "    other:  $(dep_hint quickshell quickshell quickshell)  (see quickshell.outfoxxed.me)"
     fi
     command -v qs >/dev/null 2>&1 \
-        && echo "✓ qs найден" \
-        || echo "✗ qs НЕ найден (входит в пакет quickshell)"
+        && echo "✓ qs found" \
+        || echo "✗ qs NOT found (it ships with the quickshell package)"
 
     if command -v socat >/dev/null 2>&1; then :; else
-        echo "! socat не найден — автоскрытие в играх (Hyprland) не заработает"
+        echo "! socat not found — auto-hide in games (Hyprland) won't work"
     fi
 
-    # Скриншоты: grim только на Wayland, на X11 — maim/scrot/import.
+    # Screenshots: grim is Wayland-only; on X11 — maim/scrot/import.
     local shot=""
     for t in grim maim scrot import; do
         command -v "$t" >/dev/null 2>&1 && { shot="$t"; break; }
     done
     if [[ -z "$shot" ]]; then
-        echo "! скриншот-утилита не найдена — scripts/screenshot.sh не заработает"
+        echo "! no screenshot tool found — scripts/screenshot.sh won't work"
         echo "    Wayland: grim · X11: maim/scrot/imagemagick"
     fi
 
-    # X11 без композитора: окно будет непрозрачным (чёрный фон).
+    # X11 without a compositor: the window would be opaque (black background).
     if [[ "$(detect_session)" == "x11" ]]; then
         case "$(detect_desktop)" in
             gnome|kde|xfce|cinnamon|mate|lxqt|lxde|budgie) ;;
-            *) echo "! X11 без DE-композитора — для прозрачности запустите picom (или compton)" ;;
+            *) echo "! X11 without a DE compositor — run picom (or compton) for transparency" ;;
         esac
     fi
 
-    # радар RainViewer: Rust-демон (сеть + декод PNG идут вне QML/Canvas).
-    # cargo сам пропускает уже собранное — повторный install быстрый.
+    # RainViewer radar: a Rust daemon (network + PNG decode run outside
+    # QML/Canvas). cargo skips already-built output — repeat installs are fast.
     if command -v cargo >/dev/null 2>&1; then
         local buildlog
         if buildlog=$(cd "$DIR/radar-backend" && cargo build --release 2>&1); then
-            echo "✓ радар-демон собран (radar-backend/target/release/atmospheric-radar)"
+            echo "✓ radar daemon built (radar-backend/target/release/atmospheric-radar)"
         else
-            echo "! сборка радара не удалась — радар будет radar=none, покажи вывод:" >&2
+            echo "! radar build failed — the radar will be radar=none, output:" >&2
             echo "$buildlog" | tail -15 >&2
         fi
     else
-        echo "! cargo не найден — радар-демон не собран (pacman -S rust); прогноз и эффекты работают"
+        echo "! cargo not found — radar daemon not built (pacman -S rust); forecast and effects work"
     fi
 
-    # Раньше здесь ставилась обёртка fastfetch с погодным ASCII-артом.
-    # Фича удалена — если от неё остался симлинк в PATH, убираем.
+    # A fastfetch wrapper with weather ASCII art used to be installed here.
+    # The feature is gone — remove any leftover symlink in PATH.
     local legacy
     for legacy in "$HOME/.local/bin/fastfetch" "/usr/local/bin/fastfetch"; do
         if [[ -L "$legacy" ]] && [[ "$(readlink -f -- "$legacy" 2>/dev/null)" == "$DIR/scripts/fastfetch-weather" ]]; then
             rm -f "$legacy" 2>/dev/null || sudo rm -f "$legacy" 2>/dev/null || true
-            echo "✓ Убран старый симлинк fastfetch: $legacy"
+            echo "✓ Removed a legacy fastfetch symlink: $legacy"
         fi
     done
 
-    # Выбор города при установке. Первый раз (город пуст) — сразу TUI,
-    # дальше — короткий вопрос: Enter откроет выбор, в нём доступен поиск
-    # любого города мира (клавиша /, работает и для координат).
+    # City choice at install time. First run (city empty) — straight into
+    # the TUI; later — a quick question: Enter opens the picker (search any
+    # city in the world with /, coordinates work too).
     if [[ -f "$DIR/Config.qml" ]]; then
         local cur_city="" ans=""
         cur_city="$(grep -oE 'property string city: "[^"]*"' "$DIR/Config.qml" | head -n1 | sed 's/.*"\(.*\)"/\1/' || true)"
         if [[ -z "$cur_city" ]]; then
             echo
-            echo "Город ещё не выбран — выбираем (в меню: / — любой город мира):"
-            do_city || echo "! Выбор города пропущен (позже: atmospheric city)"
+            echo "No city chosen yet — pick one (/ in the menu — any city in the world):"
+            do_city || echo "! City choice skipped (later: atmospheric city)"
         elif [[ -t 0 && -t 1 ]]; then
             echo
-            printf 'Город: %s — Enter, чтобы выбрать другой (любой город мира), q — оставить: ' "$cur_city"
+            printf 'City: %s — Enter to pick another (any city in the world), q to keep: ' "$cur_city"
             IFS= read -r ans || ans="q"
             case "$ans" in
-                ""|y|Y|д|Д) do_city || true ;;
-                *) echo "Оставляем: $cur_city" ;;
+                ""|y|Y) do_city || true ;;
+                *) echo "Keeping: $cur_city" ;;
             esac
         fi
     fi
 
     case ":${PATH:-}:" in
-        *":${BIN_DIR}:"*) echo "✓ $BIN_DIR уже в PATH" ;;
-        *) echo "! Добавьте в PATH:  export PATH=\"${BIN_DIR}:\$PATH\"  (в ~/.bashrc, ~/.zshrc или ~/.config/fish/config.fish)" ;;
+        *":${BIN_DIR}:"*) echo "✓ $BIN_DIR is already in PATH" ;;
+        *) echo "! Add to PATH:  export PATH=\"${BIN_DIR}:\$PATH\"  (in ~/.bashrc, ~/.zshrc or ~/.config/fish/config.fish)" ;;
     esac
 
-    # --- автозапуск под текущую среду --------------------------
+    # --- autostart for the current session ----------------------
     echo
     if [[ "$want_autostart" == "yes" ]]; then
-        do_autostart on || true   # неподдерживаемая среда не ломает install
+        do_autostart on || true   # an unsupported session must not break install
     else
-        echo "Автозапуск пропущен (--no-autostart)"
+        echo "Autostart skipped (--no-autostart)"
     fi
 
     cat <<EOF
 
-Готово. Попробуйте:
-  atmospheric            # запустить оверлей
-  atmospheric rain       # тест дождя
-  atmospheric status     # среда, погода, тест-режим
-  atmospheric city       # сменить город (TUI)
-  atmospheric autostart  # где прописан автозапуск
+Done. Try:
+  atmospheric            # start the overlay
+  atmospheric rain       # test rain
+  atmospheric status     # session, weather, test mode
+  atmospheric city       # change the city (TUI)
+  atmospheric autostart  # where autostart is configured
 
-Хоткей на переключение (по желанию):
+Toggle hotkey (optional):
   Hyprland:  bind = SUPER, F8, exec, qs -p $DIR ipc call weather toggle
   Sway/i3:   bindsym \$mod+F8 exec qs -p $DIR ipc call weather toggle
-  прочее:    назначьте в настройках DE команду:
+  others:    bind this command in your desktop settings:
              qs -p $DIR ipc call weather toggle
 
-Скриншот без оверлея: bash $DIR/scripts/screenshot.sh
+Screenshot without the overlay: bash $DIR/scripts/screenshot.sh
 EOF
 }
 
-# --- удаление ---------------------------------------------------
-# Убирает только интеграцию с системой: автозапуск и ссылки в PATH.
-# Сам каталог проекта и Config.qml (город) не трогает.
+# --- uninstall --------------------------------------------------
+# Removes only system integration: autostart and PATH symlinks.
+# Keeps the project directory and Config.qml (the city) intact.
 do_uninstall() {
     local bin target
 
@@ -885,63 +885,63 @@ do_uninstall() {
                "$HOME/.local/bin/fastfetch" "/usr/local/bin/fastfetch"; do
         [[ -n "$bin" && -L "$bin" ]] || continue
         target="$(readlink -f -- "$bin" 2>/dev/null || true)"
-        # $DIR/scripts/fastfetch-weather — след старой версии с ASCII-артом.
+        # $DIR/scripts/fastfetch-weather — a leftover of the old ASCII-art version.
         if [[ "$target" == "$SELF" || "$target" == "$DIR/scripts/fastfetch-weather" ]]; then
             if rm -f "$bin" 2>/dev/null || sudo rm -f "$bin" 2>/dev/null; then
-                echo "✓ Удалено: $bin"
+                echo "✓ Removed: $bin"
             else
-                echo "! Не удалось удалить $bin (нет прав)" >&2
+                echo "! Could not remove $bin (no permission)" >&2
             fi
         fi
     done
 
     echo
-    echo "Проект остался на месте: $DIR"
-    echo "Настройки (город и т.п.) — в Config.qml; лог — $LOG"
+    echo "The project stays where it is: $DIR"
+    echo "Settings (city etc.) live in Config.qml; log — $LOG"
 }
 
-# --- поиск любого города мира ----------------------------------
-# Nominatim (OpenStreetMap) → строки «Название|широта|долгота», тот же формат,
-# что у assets/cities-ru.txt, — результаты идут в то же меню выбора.
-# Принимает и координаты («55.75,37.61») — тогда сеть не нужна.
+# --- search for any city in the world ---------------------------
+# Nominatim (OpenStreetMap) → "Name|latitude|longitude" lines — the same
+# format as assets/cities.txt — results feed the same picker menu.
+# Coordinates ("55.75,37.61") are accepted too — no network needed then.
 city_geocode() {
     local q="${1:-}" json out="" attempt
     q="$(printf '%s' "$q" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
     [[ -n "$q" ]] || return 1
 
-    # прямые координаты вместо названия (широта,долгота через запятую/пробел/точку с запятой)
+    # direct coordinates instead of a name (separated by , or space or ;)
     local re='^-?[0-9]+([.][0-9]+)?[ ,;]+-?[0-9]+([.][0-9]+)?$'
     if [[ "$q" =~ $re ]]; then
         local la="${q%%[ ,;]*}" lo="${q##*[ ,;]}"
-        # %s, а не %.4f: в локалях с запятой printf ломает точечные числа
-        printf '%s|%s|%s\n' "Координаты $la,$lo" "$la" "$lo"
+        # %s, not %.4f: printf breaks dot-decimal numbers in comma locales
+        printf '%s|%s|%s\n' "Coordinates $la,$lo" "$la" "$lo"
         return 0
     fi
 
     command -v curl >/dev/null 2>&1 || {
-        echo "! curl не найден — поиск города недоступен, остаётся список из файла" >&2
+        echo "! curl not found — city search unavailable, keeping the file list" >&2
         return 1
     }
 
-    # Nominatim просит ≤1 запроса в секунду и осмысленный User-Agent.
-    # Один повтор — на случай сетевого сбоя.
+    # Nominatim asks for ≤1 request per second and a meaningful User-Agent.
+    # One retry in case of a network hiccup.
     for attempt in 1 2; do
         if json="$(curl -fsS --max-time 8 -G 'https://nominatim.openstreetmap.org/search' \
                 --data-urlencode "q=$q" --data-urlencode 'format=jsonv2' \
                 --data-urlencode 'limit=8' --data-urlencode 'addressdetails=1' \
                 -H "User-Agent: atmospheric-installer/$VERSION" \
-                -H 'Accept-Language: ru' 2>/dev/null)"; then
+                -H 'Accept-Language: en' 2>/dev/null)"; then
             break
         fi
         json=""
         (( attempt == 2 )) && sleep 1
     done
     if [[ -z "$json" ]]; then
-        echo "! Поиск города не удался (нет сети или лимит запросов Nominatim) — остаётся список из файла" >&2
+        echo "! City search failed (no network or Nominatim rate limit) — keeping the file list" >&2
         return 1
     fi
 
-    # Разбор JSON: python3, иначе jq. Населённые пункты выше провинций.
+    # JSON parsing: python3, else jq. Populated places rank above provinces.
     if command -v python3 >/dev/null 2>&1; then
         out="$(printf '%s' "$json" | python3 -c '
 import json, sys
@@ -980,7 +980,7 @@ for _, label, lat, lon in sorted(rows):
             | sort_by(.k)[] | "\(.l)|\(.la)|\(.lo)"
         ' 2>/dev/null)" || out=""
     else
-        echo "! Для поиска города нужны python3 или jq" >&2
+        echo "! City search needs python3 or jq" >&2
         return 1
     fi
 
@@ -988,26 +988,26 @@ for _, label, lat, lon in sorted(rows):
     printf '%s\n' "$out"
 }
 
-# --- выбор города (TUI) ----------------------------------------
-# Список: assets/cities-ru.txt, формат «Название|широта|долгота».
-# Выбор пишется в Config.qml (city/latitude/longitude) внутри существующего
-# inode — quickshell подхватывает сохранение сам (hot-reload) и сразу
-# перезапрашивает погоду нового города.
+# --- city picker (TUI) ------------------------------------------
+# List: assets/cities.txt, format "Name|latitude|longitude".
+# The pick is written into Config.qml (city/latitude/longitude) in place,
+# same inode — quickshell picks the save up itself (hot-reload) and
+# immediately refetches weather for the new city.
 do_city() {
-    local file="$DIR/assets/cities-ru.txt"
+    local file="$DIR/assets/cities.txt"
     local cfg="$DIR/Config.qml"
-    [[ -f $file ]] || { echo "Нет файла городов: $file" >&2; return 1; }
-    [[ -f $cfg ]]  || { echo "Нет конфига: $cfg" >&2; return 1; }
+    [[ -f $file ]] || { echo "No city list file: $file" >&2; return 1; }
+    [[ -f $cfg ]]  || { echo "No Config.qml: $cfg" >&2; return 1; }
 
     local -a cities
     mapfile -t cities < <(grep -vE '^[[:space:]]*(#|$)' "$file" | LC_ALL=C sort)
     local n=${#cities[@]}
-    (( n > 0 )) || { echo "Список городов пуст" >&2; return 1; }
+    (( n > 0 )) || { echo "City list is empty" >&2; return 1; }
 
-    # курсор стартует на текущем городе из Config (пока не выбран — на Орле)
+    # the cursor starts on the current city from Config (default: New York)
     local cur sel=0 i
     cur="$(grep -oE 'property string city: "[^"]*"' "$cfg" | head -n1 | sed 's/.*"\(.*\)"/\1/' || true)"
-    [[ -z $cur ]] && cur="Орёл"
+    [[ -z $cur ]] && cur="New York"
     for ((i = 1; i <= n; i++)); do
         if [[ "${cities[i-1]%%|*}" == "$cur" ]]; then sel=$i; break; fi
     done
@@ -1015,7 +1015,7 @@ do_city() {
 
     local pick="" name rest lat lon notice=""
     if [[ -t 0 && -t 1 ]]; then
-        # --- интерактивное меню: стрелки/W vim, Enter, / поиск, q ---
+        # --- interactive menu: arrows/W vim, Enter, / search, q ---
         local view=18 start key k2 num
         printf '\033[?25l'
         while true; do
@@ -1025,10 +1025,10 @@ do_city() {
             (( start < 1 )) && start=1
 
             printf '\033[H\033[2J'
-            printf '  Выберите город  (%d/%d)\n' "$sel" "$n"
+            printf '  Pick a city  (%d/%d)\n' "$sel" "$n"
             [[ -n "$notice" ]] && printf '  \033[33m%s\033[0m\n' "$notice"
-            printf '  \033[2mстрелки или W vim · Enter — выбрать · / — любой город мира · q — отмена\033[0m\n'
-            (( start > 1 )) && printf '  \033[2m… выше …\033[0m\n'
+            printf '  \033[2marrows or W vim · Enter — pick · / — any city · q — back\033[0m\n'
+            (( start > 1 )) && printf '  \033[2m… above …\033[0m\n'
             for ((i = start; i < start + view && i <= n; i++)); do
                 name="${cities[i-1]%%|*}"
                 if (( i == sel )); then
@@ -1037,7 +1037,7 @@ do_city() {
                     printf '    %2d. %s\n' "$i" "$name"
                 fi
             done
-            (( start + view <= n )) && printf '  \033[2m… ниже …\033[0m\n'
+            (( start + view <= n )) && printf '  \033[2m… below …\033[0m\n'
 
             key=""
             IFS= read -rsn1 key || key="q"
@@ -1051,13 +1051,13 @@ do_city() {
                 $'\e[B'|$'\eOB'|j|J) if (( sel < n )); then sel=$(( sel + 1 )); fi ;;
                 q|Q|$'\x03')
                     printf '\033[?25h\033[H\033[2J'
-                    echo "Выбор города отменён"
+                    echo "City pick cancelled"
                     return 1 ;;
-                # / — поиск любого города мира (Nominatim); пустой запрос —
-                # вернуться к списку из assets/cities-ru.txt
+                # / — search for any city (Nominatim); empty query —
+                # go back to the file list (assets/cities.txt)
                 /)
                     printf '\033[?25h'
-                    printf '  Любой город мира (или координаты 55.75,37.61). Запрос: '
+                    printf '  Any city in the world (or coordinates 55.75,37.61). Query: '
                     local qq=""
                     local -a found=()
                     IFS= read -r qq || qq=""
@@ -1071,7 +1071,7 @@ do_city() {
                             for ((i = 1; i <= n; i++)); do
                                 if [[ "${cities[i-1]%%|*}" == "$cur" ]]; then sel=$i; break; fi
                             done
-                            notice="Список из файла"
+                            notice="Back to the file list"
                         fi
                     else
                         mapfile -t found < <(city_geocode "$qq")
@@ -1079,9 +1079,9 @@ do_city() {
                             cities=("${found[@]}")
                             n=${#cities[@]}
                             sel=1
-                            notice="Найдено по «$qq»: $n"
+                            notice="Found for “$qq”: $n"
                         else
-                            notice="Ничего не найдено по «$qq»"
+                            notice="Nothing found for “$qq”"
                         fi
                     fi ;;
                 "") pick="${cities[sel-1]}"; break ;;
@@ -1089,38 +1089,38 @@ do_city() {
         done
         printf '\033[?25h\033[H\033[2J'
     else
-        # --- неTTY: нумерованный список; вместо номера — запрос на поиск ---
+        # --- non-TTY: numbered list; text instead of a number — a search ---
         local input=""
         while true; do
-            echo "Города (введите номер; текст — поиск любого города мира):"
+            echo "Cities (enter a number; type any text to search the world):"
             for ((i = 1; i <= n; i++)); do
                 printf '%3d) %s\n' "$i" "${cities[i-1]%%|*}"
             done
-            printf 'Номер или запрос [Enter — %s]: ' "$cur"
+            printf 'Number or query [Enter = %s]: ' "$cur"
             input=""
             if ! IFS= read -r input; then
                 echo
-                echo "stdin закрыт — выбор пропущен (позже: atmospheric city)"
+                echo "stdin closed — skipping city choice (later: atmospheric city)"
                 return 1
             fi
             input="$(printf '%s' "$input" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
             if [[ -z "$input" ]]; then
-                break                       # Enter — текущий город (sel уже на нём)
+                break                       # Enter — keep the current city (cursor is on it)
             fi
             if [[ "$input" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= n )); then
                 sel=$input
                 break
             fi
-            # не номер — поиск любого города мира (или координаты)
+            # not a number — search the world (or plain coordinates)
             local -a found=()
             mapfile -t found < <(city_geocode "$input")
             if (( ${#found[@]} > 0 )); then
                 cities=("${found[@]}")
                 n=${#cities[@]}
                 sel=1
-                echo "Найдено: $n — введите номер из списка"
+                echo "Found: $n — enter a number from the list"
             else
-                echo "Ничего не найдено по «$input» — введите номер из списка"
+                echo "Nothing found for “$input” — enter a number from the list"
             fi
         done
         pick="${cities[sel-1]}"
@@ -1131,8 +1131,8 @@ do_city() {
     lat="${rest%%|*}"
     lon="${rest##*|}"
 
-    # запись без замены inode: cat > файл (truncate+write той же иноды),
-    # иначе inotify-наблюдение quickshell не заметит сохранение.
+    # write in place without replacing the inode: cat > file (truncate+write
+    # of the same inode), or quickshell's inotify watch won't see the save.
     local tmp="$cfg.tmp"
     while IFS= read -r line; do
         case "$line" in
@@ -1145,9 +1145,9 @@ do_city() {
     cat "$tmp" > "$cfg"
     rm -f "$tmp"
 
-    echo "✓ Город: $name ($lat, $lon)"
+    echo "✓ City: $name ($lat, $lon)"
     if is_running; then
-        # hot-reload конфига (~30 мс), но IPC может подниматься дольше — ждём готовности
+        # config hot-reload is fast, but IPC may still be starting up
         local out="" t
         sleep 0.8
         for ((t = 0; t < 15; t++)); do
@@ -1156,17 +1156,17 @@ do_city() {
             sleep 0.4
         done
         ipc_ok refresh >/dev/null 2>&1 || true
-        sleep 1.2                                # новый город успевает прийти
+        sleep 1.2                                # let the new city's data arrive
         ipc_ok status || true
     fi
 }
 
-# source ради тестов: функции определить, разбор команды не выполнять.
+# Sourced by tests: define functions, skip command dispatch.
 if [[ "${BASH_SOURCE[0]:-}" != "$0" ]]; then
     return 0
 fi
 
-# --- разбор команды --------------------------------------------
+# --- command dispatch -------------------------------------------
 cmd="${1:-start}"
 [[ $# -gt 0 ]] && shift || true
 
@@ -1177,8 +1177,8 @@ case "$cmd" in
 
     -V|--version|version)
         echo "atmospheric $VERSION"
-        echo "каталог: $DIR"
-        echo "quickshell: $(quickshell --version 2>/dev/null | head -1 || echo 'не найден')"
+        echo "dir: $DIR"
+        echo "quickshell: $(quickshell --version 2>/dev/null | head -1 || echo 'not found')"
         ;;
 
     install)
@@ -1200,7 +1200,7 @@ case "$cmd" in
     start|run)
         if is_running; then
             ipc_ok enable >/dev/null 2>&1 || true
-            echo "✓ Уже запущен — оверлей включён"
+            echo "✓ Already running — overlay enabled"
             ipc_ok status || true
         else
             start_bg ""
@@ -1224,7 +1224,7 @@ case "$cmd" in
     auto|off-test)
         if is_running; then
             ipc_ok test off || true
-            echo "✓ Реальная погода"
+            echo "✓ Real weather"
         else
             start_bg ""
         fi
@@ -1242,38 +1242,38 @@ case "$cmd" in
     on|enable)
         is_running || start_bg ""
         ipc_ok enable
-        echo "✓ Оверлей включён"
+        echo "✓ Overlay enabled"
         ;;
 
     off|disable)
         if is_running; then
             ipc_ok disable
-            echo "✓ Оверлей выключен"
+            echo "✓ Overlay disabled"
         else
-            echo "Не запущен — нечего выключать"
+            echo "Not running — nothing to disable"
         fi
         ;;
 
     status)
-        echo "Среда: $(env_summary)"
-        echo "Автозапуск: $(autostart_target)"
+        echo "Session: $(env_summary)"
+        echo "Autostart: $(autostart_target)"
         echo
         if is_running; then
-            echo "Запущен."
+            echo "Running."
             ipc_ok status || true
             echo
-            echo "Тест-режим: $(ipc_ok testMode || echo '?')"
+            echo "Test mode: $(ipc_ok testMode || echo '?')"
         else
-            echo "Не запущен. Запуск: atmospheric"
+            echo "Not running. Start: atmospheric"
         fi
         ;;
 
     stop)
         if stop_instance; then
-            echo "✓ Остановлен"
+            echo "✓ Stopped"
         else
-            echo "Не запущен"
-            stop_radar_daemons   # сироты возможны и без запущенного шелла
+            echo "Not running"
+            stop_radar_daemons   # orphans can exist even without a running shell
         fi
         ;;
 
@@ -1283,7 +1283,7 @@ case "$cmd" in
         ;;
 
     *)
-        echo "atmospheric: неизвестная команда: $cmd (см. atmospheric --help)" >&2
+        echo "atmospheric: unknown command: $cmd (see atmospheric --help)" >&2
         exit 2
         ;;
 esac

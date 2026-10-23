@@ -1,13 +1,13 @@
-# atmospheric — погодный оверлей на Quickshell
+# atmospheric — weather overlay on Quickshell
 
-**Версия 1.0.0** · MIT · Wayland и X11
+**v1.0.0** · MIT · Wayland and X11
 
-Полноэкранный прозрачный оверлей: дождь, снег, туман, гроза, град,
-метель, дождь со снегом, радуга после дождя и ночь
-по данным Open-Meteo / met.no (Yr). Не перехватывает клики, не сдвигает окна, скрывается, когда
-погода ясная. Работает на Wayland-композиторах с `wlr-layer-shell` и на X11.
+A fullscreen transparent overlay: rain, snow, fog, thunderstorm, hail,
+blizzard, sleet, rainbow and night — driven by Open-Meteo / met.no (Yr).
+It never steals clicks or moves windows, and hides itself in clear weather.
+Works on Wayland compositors with `wlr-layer-shell` and on X11.
 
-## Быстрый старт
+## Quick start
 
 ```bash
 git clone https://github.com/Rimix98/atmospheric.git
@@ -15,97 +15,96 @@ cd atmospheric
 ./install.sh
 ```
 
-В ходе установки в том же терминале откроется меню выбора города:
-стрелки — навигация, **`/`** — поиск любого города мира (нужна сеть),
-**Enter** — выбрать, **q** — пропустить. Дальше — просто:
+During install a city picker opens in the same terminal: arrows to navigate,
+**`/`** to search any city in the world (needs network), **Enter** to pick,
+**q** to skip. Then:
 
 ```bash
-atmospheric      # запустить оверлей
+atmospheric      # start the overlay
 ```
 
-Проверить состояние: `atmospheric status`; тест эффектов: `atmospheric rain`,
+Check state with `atmospheric status`; try effects with `atmospheric rain`,
 `atmospheric snow`, `atmospheric auto`.
 
-## Структура
+## Structure
 
 ```
 atmospheric/
-├── install.sh             # установка одной командой (из любого каталога)
-├── atmospheric            # единая команда: install / rain / snow / status / autostart ...
-├── shell.qml              # Scope: Config + Weather + IpcHandler + Variants<окно>
-├── OverlayWindowWayland.qml # окно-слой wlr-layer-shell (Wayland)
-├── OverlayWindowX11.qml   # полноэкранное окно X11 (aboveWindows, клики насквозь)
-├── Config.qml             # ВСЕ настройки в одном месте
-├── Weather.qml            # гонка Open-Meteo + met.no (Yr), маппинг WMO, таймеры
-├── Radar.qml              # читалка радара RainViewer из Rust-демона (unix-сокет, JSON)
-├── radar-backend/         # Rust-демон: сеть RainViewer + декод PNG (cargo build --release)
-├── WeatherOverlay.qml     # Выбор эффекта по состоянию погоды
+├── install.sh               # one-command install (from any directory)
+├── atmospheric              # single command: install / rain / snow / status / autostart ...
+├── shell.qml                # Scope: Config + Weather + IpcHandler + Variants<window>
+├── OverlayWindowWayland.qml # wlr-layer-shell window (Wayland)
+├── OverlayWindowX11.qml     # fullscreen X11 window (aboveWindows, click-through)
+├── Config.qml               # ALL settings in one place
+├── Weather.qml              # Open-Meteo + met.no (Yr) race, WMO mapping, timers
+├── Radar.qml                # RainViewer reader fed by the Rust daemon (unix socket, JSON)
+├── radar-backend/           # Rust daemon: RainViewer network + PNG decode (cargo build --release)
+├── WeatherOverlay.qml       # effect selection from weather state
 ├── effects/
-│   ├── Rain.qml           # QtQuick.Particles: вытянутые капли под углом ветра
-│   ├── Snow.qml           # SVG-снежинки, два слоя глубины, вращение (+ метель)
-│   ├── Fog.qml            # мелкие облака, очень медленный дрейф
-│   ├── Lightning.qml      # редкая вспышка со случайным интервалом
-│   └── Rainbow.qml        # дуга из семи полос после дождя
+│   ├── Rain.qml             # QtQuick.Particles: elongated drops along the wind
+│   ├── Snow.qml             # SVG flakes, two depth layers, rotation (+ blizzard)
+│   ├── Fog.qml              # small clouds, very slow drift
+│   ├── Lightning.qml        # rare flash on a random interval
+│   └── Rainbow.qml          # seven-band arc after rain
 ├── assets/
-│   ├── drop.svg           # спрайт капли (квадрат с линией — масштабируется ровно)
-│   ├── flake.svg          # нарисованная снежинка: 6 лучей с веточками
-│   ├── rainbow.svg        # радужная дуга (7 полос, мягкий край)
-│   └── cities-ru.txt      # города для TUI-выбора (Россия, Имя|lat|lon)
+│   ├── drop.svg             # drop sprite (square with a line — scales evenly)
+│   ├── flake.svg            # drawn snowflake: 6 spokes with twigs
+│   ├── rainbow.svg          # rainbow arc (7 bands, soft edge)
+│   └── cities.txt           # world cities for the TUI picker (Name|lat|lon)
 ├── scripts/
-│   ├── run.sh             # лаунчер с тестовыми флагами: --rain, --snow, ...
-│   ├── screenshot.sh      # обёртка над atmospheric shot: гасит оверлей на время кадра
-│   └── autohide-games.sh  # гасит оверлей для игр/mpv (socket2 Hyprland)
-├── hyprland.conf.snippets # готовые строки для hyprland.conf
-├── Makefile               # make check / install / dist
-├── VERSION                # текущая версия (1.0.0)
-├── CHANGELOG.md           # история изменений
-├── LICENSE                # MIT
-└── .qmlls.ini             # (локально) настройки qmlls/LSP, в архив не входит
+│   ├── run.sh               # launcher with test flags: --rain, --snow, ...
+│   ├── screenshot.sh        # thin wrapper over atmospheric shot
+│   └── autohide-games.sh    # hide the overlay for games/mpv (Hyprland socket2)
+├── hyprland.conf.snippets   # ready-made lines for hyprland.conf
+├── Makefile                 # make check / install / dist
+├── VERSION                  # current version (1.0.0)
+├── CHANGELOG.md             # change history
+└── LICENSE                  # MIT
 ```
 
-## Выбор города (TUI)
+## City picker (TUI)
 
-`atmospheric install` спрашивает город: **Enter** — открыть выбор, **q** —
-оставить текущий (при первом запуске, когда города ещё нет, меню открывается
-сразу). В меню — локальный список `assets/cities-ru.txt`
-(формат «Название|широта|долгота», свои города дописываются туда же строкой)
-и **поиск любого города мира**: клавиша `/`, дальше запрос вроде `Токио` или
-`Paris, Texas` — уходит в Nominatim (OpenStreetMap, нужна сеть), возвращается
-до 8 совпадений с названием страны. Вместо названия можно ввести координаты
-(`55.75,37.61`) — они принимаются и поиском, и напрямую.
+`atmospheric install` asks for a city: **Enter** opens the picker, **q** keeps
+the current one (on first run, with no city set, the menu opens right away).
+The menu shows a bundled list `assets/cities.txt` (format `Name|latitude|longitude`,
+append your own cities as lines) plus a **search for any city in the world**:
+press **/**, type e.g. `Tokyo` or `Paris, Texas` — the query goes to Nominatim
+(OpenStreetMap, network required) and returns up to 8 matches with the country.
+Instead of a name you can type coordinates (`55.75,37.61`) — accepted both by
+the search and directly.
 
-- Управление: **стрелки** или `W vim` (↑/↓), **Enter** — выбрать, **/** —
-  поиск любого города мира (пустой запрос — вернуться к списку из файла),
-  **q** — отмена. Список прокручивается окном в 18 строк, текущий пункт
-  подсвечен.
-- Выбор пишется в `Config.qml` (`city`, `latitude`, `longitude`) — quickshell
-  подхватывает сохранение сам (hot-reload), оверлей тут же перезапрашивает
-  погоду нового города, а `atmospheric status` начинает показывать `city=...`.
-- Повторный выбор в любой момент: `atmospheric city`.
-- Если stdin не терминал — печатается нумерованный список: номер выбирает
-  город, любой другой ввод уходит в поиск и показывает найденные (затем снова
-  просит номер); при закрытом stdin выбор пропущен с подсказкой.
-- Нет сети или curl — остаётся локальный список, установка не ломается.
-- Пока город не выбран, работают координаты по умолчанию (Орёл).
+- Controls: **arrows** or `W vim` (↑/↓), **Enter** to pick, **/** to search
+  (empty query returns to the file list), **q** cancels. The list scrolls in an
+  18-line window with the current row highlighted.
+- The pick is written to `Config.qml` (`city`, `latitude`, `longitude`) —
+  quickshell hot-reloads it, the overlay refetches weather for the new city
+  right away, and `atmospheric status` starts showing `city=...`.
+- Pick again any time: `atmospheric city`.
+- Without a TTY a numbered list is printed: a number picks the city, any other
+  input goes to search (then it asks for a number again); with stdin closed the
+  choice is skipped with a hint.
+- No network or no curl — the bundled list still works; install never breaks.
+- Until a city is chosen, default coordinates are used (New York).
 
-## Запуск
+## Running
 
-**Установка** — см. [Быстрый старт](#быстрый-старт) выше: клонирование,
-`./install.sh` и выбор города в терминале. Скрипт делает это (подходит для
-любой графики — Wayland и X11):
-1. кладёт команду `atmospheric` в PATH (`~/.local/bin`, а если его нет в PATH —
-   `/usr/local/bin`);
-2. проверяет зависимости;
-3. собирает радар-демон (если есть `cargo`);
-4. прописывает автозапуск в правильное для среды место (с бэкапом);
-5. при первом запуске спрашивает город (TUI).
+**Install** — see [Quick start](#quick-start) above: clone, `./install.sh` and
+the city picker in the terminal. The script (works for any graphics stack —
+Wayland and X11):
 
-Опции: `--system` — поставить в `/usr/local/bin` через sudo; `--no-autostart` —
-не трогать автозапуск; `--autostart` — включить явно.
+1. puts the `atmospheric` command into PATH (`~/.local/bin`, or
+   `/usr/local/bin` if `~/.local/bin` is not in PATH);
+2. checks dependencies;
+3. builds the radar daemon (if `cargo` is available);
+4. writes autostart into the right place for your session (with a backup);
+5. asks for a city on first run (TUI).
 
-**Куда попадает автозапуск:**
+Options: `--system` — install to `/usr/local/bin` via sudo; `--no-autostart` —
+leave autostart alone; `--autostart` — enable it explicitly.
 
-| Среда | Файл |
+**Where autostart goes:**
+
+| Session | File |
 |---|---|
 | Hyprland | `~/.config/hypr/hyprland.conf` → `exec-once = quickshell -p …` |
 | Sway | `~/.config/sway/config` → `exec quickshell -p …` |
@@ -116,564 +115,372 @@ atmospheric/
 | i3 | `~/.config/i3/config` → `exec --no-startup-id …` |
 | bspwm | `~/.config/bspwm/bspwmrc` |
 | Openbox | `~/.config/openbox/autostart` |
-| KDE, GNOME (Xorg), XFCE, Cinnamon, MATE, LXQt, Budgie, прочие DE | `~/.config/autostart/atmospheric.desktop` (XDG) |
+| KDE, GNOME (Xorg), XFCE, Cinnamon, MATE, LXQt, Budgie and other DEs | `~/.config/autostart/atmospheric.desktop` (XDG) |
 
-Проверить, что определилось, и включить/выключить автозапуск:
-
-```bash
-atmospheric autostart status   # среда + файл + настроен ли
-atmospheric autostart off      # убрать (с бэкапом)
-atmospheric autostart on       # вернуть
-```
-
-**Что поддерживается:**
-
-- **Wayland с `wlr-layer-shell`:** Hyprland, Sway, niri, river, Wayfire, labwc,
-  KDE Plasma 6 — оверлей ложится отдельным слоем (`WlrLayer.Top`/`Overlay`).
-- **X11:** любой WM/DE (Quickshell собирается с X11-бэкендом) — i3, bspwm,
-  Openbox, XFCE, KDE/GNOME на Xorg. Окно полноэкранное, `aboveWindows` +
-  пустая маска ввода. Для прозрачности в «голых» WM нужен композитор (picom);
-  в DE он уже есть.
-- **GNOME Wayland — не поддерживается:** Mutter не реализует
-  `wlr-layer-shell`, оверлею нечем лечь поверх окон. Установщик это
-  распознаёт и не прописывает заведомо нерабочий автозапуск. Варианты: сессия
-  GNOME на X11 (Xorg) или другой композитор.
-
-Дальше:
+Check detection and toggle autostart:
 
 ```bash
-atmospheric            # запустить оверлей (или включить, если уже работает)
-atmospheric rain       # сразу увидеть дождь
-atmospheric snow       # снег
-atmospheric auto       # вернуть реальную погоду
-atmospheric status     # среда, что показывается, тест-режим
-atmospheric stop       # остановить
-atmospheric uninstall  # убрать команду из PATH и автозапуск
-atmospheric --help     # все команды
-atmospheric version    # версия
+atmospheric autostart status   # session + file + configured?
+atmospheric autostart off      # remove (with a backup)
+atmospheric autostart on       # put it back
 ```
 
-**Вручную, без установки команды:**
+**Supported:**
+
+- **Wayland with `wlr-layer-shell`:** Hyprland, Sway, niri, river, Wayfire,
+  labwc, KDE Plasma 6 — the overlay is its own layer (`WlrLayer.Top`/`Overlay`).
+- **X11:** any WM/DE (quickshell built with the X11 backend) — i3, bspwm,
+  Openbox, XFCE, KDE/GNOME on Xorg. Fullscreen window, `aboveWindows` + an
+  empty input mask. Bare WMs need a compositor (picom) for transparency; DEs
+  already have one.
+- **GNOME Wayland is NOT supported:** Mutter has no `wlr-layer-shell`, so the
+  overlay cannot layer over windows. The installer detects this and skips
+  autostart that could never work. Options: GNOME on X11 (Xorg) or another
+  compositor.
+
+Then:
+
+```bash
+atmospheric            # start the overlay (or enable it if already running)
+atmospheric rain       # see rain right away
+atmospheric snow       # snow
+atmospheric auto       # back to real weather
+atmospheric status     # session, what's shown, test mode
+atmospheric stop       # stop
+atmospheric uninstall  # remove the command from PATH and autostart
+atmospheric --help     # all commands
+atmospheric version    # version
+```
+
+**Manually, without installing the command:**
 
 ```bash
 quickshell -p /path/to/atmospheric
 ```
 
-Конфиг можно держать где угодно (`-p` = путь) или положить симлинк:
+The config can live anywhere (`-p` = path), or symlink it:
 
 ```bash
 ln -s /path/to/atmospheric ~/.config/quickshell/atmospheric
 quickshell -c atmospheric
 ```
 
-Quickshell перечитывает QML при каждом сохранении файла — правки видны сразу.
+Quickshell re-reads QML on every file save — edits show up immediately.
 
-Нужен пакет с SVG-рендером (`qtsvg`) — он требуется самому QtQuick для `drop.svg`.
-`QtQuick.Particles` входит в qtdeclarative и ставится вместе с Qt.
+A package with the SVG renderer (`qtsvg`) is required — QtQuick needs it for
+`drop.svg`. `QtQuick.Particles` ships with qtdeclarative alongside Qt.
 
-## Требования
+## Requirements
 
-| Что | Зачем | Проверено на |
+| What | Why | Tested with |
 |---|---|---|
-| Quickshell ≥ 0.3 | окно, IPC, слои | 0.3.2 |
-| Qt 6.6+ и `qtsvg` | QML-движок, SVG-капли и снежинки | 6.12 |
-| Wayland-композитор с `wlr-layer-shell` либо X11 | окно поверх других | Hyprland, XWayland |
-| `cargo` + Rust (опционально) | сборка радар-демона; без него работают прогноз и эффекты | 1.9x |
-| `socat` (опционально) | автоскрытие в играх на Hyprland | — |
-| `grim` / `maim` / `scrot` / `import` (опционально) | скриншоты без оверлея | grim 1.4 |
+| Quickshell ≥ 0.3 | window, IPC, layers | 0.3.2 |
+| Qt 6.6+ and `qtsvg` | QML engine, SVG drops and flakes | 6.12 |
+| Wayland compositor with `wlr-layer-shell`, or X11 | window above others | Hyprland, XWayland |
+| `cargo` + Rust (optional) | radar daemon build; forecast and effects work without it | 1.9x |
+| `socat` (optional) | auto-hide in games on Hyprland | — |
+| `grim` / `maim` / `scrot` / `import` (optional) | screenshots without the overlay | grim 1.4 |
 
-Установщик проверяет зависимости и подсказывает пакет под текущий дистрибутив.
-`QtQuick.Particles` входит в qtdeclarative и ставится вместе с Qt.
+The installer checks dependencies and suggests a package for your distro.
 
-## Известные ограничения
+## Known limitations
 
-- **GNOME Wayland не поддерживается:** Mutter не реализует `wlr-layer-shell`.
-  Работает GNOME на Xorg и любой Wayland-композитор с layer-shell.
-- **X11 без композитора:** прозрачности не будет — нужен `picom` (в DE он уже есть).
-- **Скриншоты:** прямой `grim`/`hyprshot` захватывает оверлей. Снимайте через
-  `atmospheric shot` — он гасит дождь на время кадра и возвращает как было.
-- **Автоскрытие в играх** (`scripts/autohide-games.sh`) — только Hyprland
-  (использует socket2).
-- **Пакеты Quickshell** собраны по-разному: для X11 нужна сборка с `-DX11=ON`
-  (в Arch-пакете включено).
+- **GNOME Wayland is not supported:** Mutter lacks `wlr-layer-shell`.
+  GNOME on Xorg works, as does any layer-shell compositor.
+- **X11 without a compositor:** no transparency — install `picom` (DEs have one).
+- **Screenshots:** a direct `grim`/`hyprshot` capture includes the overlay.
+  Use `atmospheric shot` — it hides the rain for the frame and restores it.
+- **Game auto-hide** (`scripts/autohide-games.sh`) — Hyprland only (socket2).
+- **Quickshell packages** are built differently: X11 needs `-DX11=ON`
+  (enabled in the Arch package).
 
----
+## Weather details
 
-## Этап 1. Прозрачный оверлей без анимации
+`Weather.qml` **races two providers** — Open-Meteo and met.no (Yr, the Norwegian
+meteorological service, no API key). Requests fly in parallel, the first success
+wins, the loser is cancelled. Polling runs every `Config.refreshMinutes`
+(10 minutes by default, plus 0..2 minutes of randomness — met.no terms ask not
+to hit their API on a fixed schedule). On total failure both providers retry
+every 60 seconds.
 
-В `shell.qml` уже сделано:
+**Why two providers.** From some networks the route to `api.open-meteo.com` is a
+black hole (verified live) while met.no answers in ~0.3 s — the overlay keeps
+working either way. Yr returns symbolic codes (`lightrain`, …), `yrToWmo`
+translates them to the nearest WMO code and the same mapping table applies.
+`is_day` is missing in Yr — solar altitude is computed locally (SunCalc formula).
 
-- платформа выбирается по Qt-плагину (`QT_QPA_PLATFORM`), иначе по
-  `XDG_SESSION_TYPE`: Wayland → `OverlayWindowWayland.qml`
-  (`Quickshell.Wayland`, `WlrLayershell`), X11 → `OverlayWindowX11.qml`
-  (обычное окно). Разные файлы нужны, чтобы на X11 не импортировался
-  Wayland-модуль (в сборках без Wayland его просто нет);
-- `anchors { top/bottom/left/right: true }` + `color: "transparent"` — окно на всю
-  площадь экрана;
-- Wayland: `WlrLayershell.layer:` `WlrLayer.Top` (переключается в `Config.layer` на
-  `WlrLayer.Overlay`); X11: `aboveWindows: true`, `focusable: false`
-  (слоёв на X11 нет, `Config.layer` там не действует);
-- `exclusionMode: ExclusionMode.Ignore` — оверлей не двигает другие окна;
-- `mask: Region {}` — пустая маска, клики проходят насквозь (на X11 это
-  `WindowTransparentForInput`);
-- `Variants { model: Quickshell.screens }` — окно на каждый монитор.
+WMO mapping (`stateFor`):
 
-**Проверка:** в `Config.qml` поставьте `debugSquare: true` — по экрану поплывёт
-полупрозрачный красный квадрат плюс отладочный текст с текущим состоянием.
-Кликните окно под ним — должно нажиматься. Затем верните `false`.
+| Codes         | State       | Effect                                |
+|---------------|-------------|---------------------------------------|
+| 0–1           | `clear`     | window hidden                         |
+| 2–3           | `cloudy`    | nothing (cloud effect removed)        |
+| 45, 48        | `fog`       | fog                                   |
+| 51–55         | `drizzle`   | light drizzle                         |
+| 56, 57, 66, 67| `sleet`     | rain with snow (freezing rain)        |
+| 61–63, 80     | `rain`      | rain                                  |
+| 65, 81–82     | `heavyRain` | downpour                              |
+| 71–77, 85–86  | `snow`      | snow                                  |
+| 95–99         | `thunder`   | rain + lightning flashes              |
+| 96, 99        | `thunder` + hail | + fast white grains             |
 
-Критерий готовности: ✅ красный квадрат на каждом мониторе, клики сквозь него идут.
+**Fog by visibility (second signal).** Open-Meteo returns `visibility` in meters:
+below `fogVisibilityM` (1000 m) fog turns on even without codes 45/48 (rain/snow/
+thunderstorm outrank it). Below `fogDenseVisibilityM` (300 m) — dense fog.
+Yr has no visibility parameter, so the signal is simply unavailable there.
 
----
+**Modifiers:** `hail` (only with thunder, WMO 96/99) and `blizzard` (snow with
+wind ≥ `blizzardWind` 8 m/s) are flags over `thunder`/`snow`, not separate states.
 
-## Этап 2. Получение погоды
+**Rainbow** (`rainbow`) — a bonus over the data: rain ended within the last
+`rainbowMinutes` (30 min), sky is clear, the sun is low (0.5–42° — primary-rainbow
+physics), daytime. A seven-band arc (`assets/rainbow.svg`) fades in over 3 s.
 
-`Weather.qml`: **гонка двух провайдеров** — Open-Meteo и met.no (Yr, метеослужба
-Норвегии, без ключа). Запросы летят параллельно, побеждает первый успешный,
-проигравший отменяется. Опрос по `Timer` раз в `Config.refreshMinutes`
-(по умолчанию 10 минут — чаще данные просто не обновляются; к каждому интервалу
-добавляется 0..2 мин случайности — Terms met.no просят не засекать трафик
-фиксированным расписанием). Первый запрос — сразу при старте, при ошибке обоих
-повтор каждые 60 секунд, пока не получим ответ. Осадки «прямо сейчас» берёт
-на себя радарный слой — см. раздел «Реальное время».
+`intensityFor` gives a 0..1 multiplier (drizzle 0.3, downpour 1.0) scaling
+`emitRate` and fall speed; wind speed/direction become drop `tilt` (±25°) and
+horizontal snow drift.
 
-```
-GET https://api.open-meteo.com/v1/forecast
-    ?latitude=52.9668&longitude=36.0625        # Орёл
-    &current=weather_code,temperature_2m,wind_speed_10m,wind_direction_10m,is_day
-    &wind_speed_unit=ms&timezone=auto
+**Errors:** any network error goes to `lastError` — the state is never reset to
+"clear", the last known weather stays on screen. If nothing ever arrived
+(`loaded: false`), the window stays hidden.
 
-GET https://api.met.no/weatherapi/locationforecast/2.0/compact
-    ?lat=52.9668&lon=36.0625
-```
+**Honest weak spot:** point-API weather can disagree with what's outside the
+window — especially drizzle and local showers. Perfect "vibe" match won't
+happen, and that's fine.
 
-**Зачем два провайдера.** С некоторых сетей маршрут до `api.open-meteo.com`
-(Hetzner FSN1, `94.130.142.35`) — чёрная дыра: висят и `curl`, и XHR, при том что
-DNS честный (проверено вживую: пинг/443 — 100% потерь, `hetzner.com` и
-`geocoding-api.open-meteo.com` по IPv6 при этом живые). met.no отвечает за ~0.3 с,
-поэтому оверлей работает в любом случае — в этом инциденте статус был ровно
-`rain (yr) code=61` при полной недоступности Open-Meteo. Ответ Yr — символические
-коды (`lightrain`, `heavyrainandthunder`, ...), `yrToWmo` переводит их в ближайший
-WMO-код, дальше работает та же таблица маппинга. `is_day` в Yr нет — высота Солнца
-считается локально (формула SunCalc; сверена с `api.met.no/weatherapi/sunrise`
-для Орла: рассвет 07:01 = 07:01, закат 17:41 ≈ 17:40, полдень ±0.2°).
+## Effects and tuning
 
-Кто победил, видно в статусе: `atmospheric status` → `rain (yr) code=61 ...`,
-в отладочном тексте — поле `src=`.
+1. **Rain** — `Emitter` at the top edge, `drop.svg` sprite (a line in a square:
+   `ImageParticle` scales the image into the particle's square, so the drop is
+   not distorted). Tilt = sprite `rotation` + `AngleDirection.angle`. The color
+   is **bluish** (`rainColor: #7fa9e6`), soft opacity (`rainOpacity: 0.30`).
+2. **Snow** — drawn SVG flake (`assets/flake.svg`), two depth layers (far: small,
+   frequent, fast; near: large, slow), random orientation + slow
+   `rotationVelocity`. Wind drift via `acceleration`. `snowOpacity: 0.42`.
+3. **Fog** — small clouds from a drawn SVG (`assets/cloud.svg`, soft radial
+   puffs). Very slow drift: `fogSpeed: 12` px/s ≈ 2.5 min to cross. Two depth
+   layers; `Emitter.burst()` fills the screen on spawn, then rare additions.
+   Soft grey-blue `fogColor: #ccd9ea` — readable on white pages and wallpapers.
+4. **Thunderstorm** — heavier than downpour (`thunderRate: 350` vs
+   `heavyRainRate: 260`) + a `Timer` with a random 5–16 s interval: 55 ms flash
+   up, a short dip, a second kick, 450 ms fade. Peak `flashPeakOpacity: 0.20`.
+5. **Hail** — the same `Rain` as a second instance over the storm: short, fast,
+   **white** grains (`hailColor: #e3eefb`). Enabled by `effectiveHail` (WMO 96/99).
+6. **Sleet** — `Rain` (short drops) and `Snow` at once: wet snow falls as both.
+7. **Blizzard** — snow modifier at wind ≥ `blizzardWind` (8 m/s): density ×2.2,
+   speed ×1.7, wind drift ×2.5, angular variety mostly removed — flakes fly as
+   slanted parallel streaks.
+8. **Rainbow** — seven bands (`assets/rainbow.svg`, soft `feGaussianBlur` edge)
+   sunk behind the bottom edge; fades in over 3 s, quiet at `rainbowOpacity: 0.40`.
+9. **Night** — a `#0a1a3a` rectangle at `is_day = 0`. By default only an icy tint
+   (`nightTintOpacity: 0.06`); full dimming (`nightDim: true`,
+   `nightOpacity: 0.18`) actually lowers brightness — enable it deliberately.
 
-Маппинг WMO-кодов (`stateFor`):
+### Performance
 
-| Коды          | Состояние   | Эффект                                 |
-|---------------|-------------|----------------------------------------|
-| 0–1           | `clear`     | окно скрыто                            |
-| 2–3           | `cloudy`    | ничего — эффект облачности убран       |
-| 45, 48        | `fog`       | туман                                  |
-| 51–55         | `drizzle`   | редкий мелкий дождь                    |
-| 56, 57, 66, 67| `sleet`     | дождь со снегом (переохлаждённый дождь)|
-| 61–63, 80     | `rain`      | дождь                                  |
-| 65, 81–82     | `heavyRain` | ливень                                 |
-| 71–77, 85–86  | `snow`      | снег                                   |
-| 95–99         | `thunder`   | дождь + вспышки молний                 |
-| 96, 99        | `thunder` + град | + белые быстрые крупинки          |
+- **The window hides when there is no effect.** `visible:` follows
+  `weather.active` — clear (and not night) means no window and no scene at all.
+- **100–300 particles.** Real count ≈ `rate × lifetime`. Tune the numbers in
+  `Config.qml`; `heavyRainRate` is the main cost.
+- No separate FPS switch exists in QtQuick: rendering is already vsync-limited.
+  If the GPU struggles, lower `emitRate`. `updatesEnabled: false` on the window
+  (`QsWindow`) helps for static states.
+- `maximumEmitted` on `Emitter` is a hard cap on live particles.
 
-**Туман по видимости (второй сигнал).** Open-Meteo отдаёт `visibility` в метрах
-(часовой бин, в том же запросе): если видимость < `fogVisibilityM` (1000 м),
-туман включается даже без кодов 45/48 (кроме дождя/снега/грозы — они выше по
-приоритету). < `fogDenseVisibilityM` (300 м) — густой туман: облака плотнее
-(`effectiveFogDense`, в статусе помечается «густой»). У Yr параметра видимости
-нет — когда данные пришли от него, сигнал просто недоступен.
+### Config.qml tuning table
 
-**Модификаторы:** `hail` (град — только с грозой, WMO 96/99) и `blizzard`
-(метель — снег при ветре ≥ `blizzardWind` 8 м/с) не отдельные состояния, а
-флаги поверх `thunder`/`snow` (`atmospheric status` помечает их словами
-«град»/«метель»).
-
-**Радуга** (`rainbow`) — «украшение» поверх данных: дождь кончился в последние
-`rainbowMinutes` (30 мин), небо чистое, солнце уже низко (высота 0.5–42° —
-физика первичной радуги), день. Рисуется дуга из семи полос
-(`assets/rainbow.svg`) у нижнего края, проявляется за 3 с.
-
-`intensityFor` даёт множитель 0..1 (морось 0.3, ливень 1.0) — им масштабируется
-`emitRate` и скорость падения. `wind_speed_10m` + `wind_direction_10m` превращаются
-в наклон капель (`tilt`, ±25°) и горизонтальный дрейф снега.
-
-**Ошибки:** любая сетевая ошибка просто пишется в `lastError`, состояние НЕ
-сбрасывается и НЕ откатывается к «ясно» — остаётся последнее известное. Если
-данных не было вообще (`loaded: false`), окно остаётся скрытым: ерунду не рисуем.
-Упал только один провайдер — данных достаточно, `err` перечисляет падения
-(`err=open-meteo: network error`); упали оба — причины соединяются через `|`.
-
-**Слабое место (честно):** погода в точке API может не совпадать с тем, что за
-окном — особенно морось и локальные ливни. Идеального соответствия «вайбу» не
-будет, и это нормально.
-
----
-
-## Этап 3. Анимации
-
-Порядок разработки и что смотреть:
-
-1. **Дождь** (`effects/Rain.qml`) — `Emitter` на верхней кромке, спрайт `drop.svg`
-   (тонкая линия в квадрате: `ImageParticle` масштабирует картинку в квадрат
-   размера частицы, поэтому капля не деформируется). Наклон = `rotation` спрайта +
-   `AngleDirection.angle` — капель летит ровно «вдоль» себя. Интенсивность =
-   `emitRate`. Цвет — **синеватый** (`rainColor: #7fa9e6`, не белый), прозрачность
-   мягкая (`rainOpacity: 0.30`), чтобы не забивать картинку.
-2. **Снег** (`effects/Snow.qml`) — нарисованная SVG-снежинка `assets/flake.svg`
-   (6 лучей с веточками), два слоя глубины: дальний план (мелкие, чаще, быстрее)
-   и ближний (крупные медленные снежинки), случайный разворот + медленное
-   вращение `rotationVelocity` — хлопья «играют» на свету. Дрейф от ветра через
-   `acceleration`. Заметность тонкая: `snowOpacity: 0.42`.
-3. **Туман** (`effects/Fog.qml`) — небольшие облака из нарисованного SVG
-   (`assets/cloud.svg`: слияние мягких «пуфов» с радиальным градиентом, у
-   контура нет жёсткой кромки). Очень медленный дрейф поперёк экрана:
-   `fogSpeed: 12` px/с ≈ 2,5 минуты на переход. Два слоя глубины — дальние
-   (70–230 px, чуть быстрее) и ближние (140–380 px, крупнее и медленнее).
-   При появлении слоя `Emitter.burst()` мгновенно заполняет экран, дальше —
-   редкие появления (`emitRate = 0.02/с × fogDensity` на слой; при `fogDensity: 2.5` — ~17 облаков сразу).
-   Ветер лишь чуть меняет скорость (`windX = tilt × 0.15`). Цвет облаков —
-   мягкий серо-голубой `fogColor: #ccd9ea`: читается на белых страницах,
-   на тёмном и на обоях.
-4. **Гроза** (`effects/Lightning.qml`) — дождь пуще ливня (`thunderRate: 350`
-   против `heavyRainRate: 260`, скорость 1500 px/с) + `Timer` со случайным
-   интервалом 5–16 с: вспышка 55 мс вверх, короткий провал, второй толчок,
-   затухание 450 мс. Пиковая прозрачность `flashPeakOpacity: 0.20`.
-5. **Град** — тот же `Rain`, но вторым экземпляром поверх грозы: короткие
-   (`rainLength × 0.45`), быстрые (1450 px/с) **белые** крупинки
-   (`hailColor: #e3eefb`) — в отличие от синеватого дождя читаются как лёд.
-   Включается флагом `effectiveHail` при WMO 96/99.
-6. **Дождь со снегом** (`sleet`) — `Rain` (усиленный мороженым `sleetRainRate: 90`,
-   короткие капли) и `Snow` (`sleetSnowRate: 12`) одновременно: мокрый снег идёт
-   и каплями, и хлопьями.
-7. **Метель** (`blizzard`) — модификатор снега при ветре ≥ `blizzardWind` (8 м/с):
-   в `Snow.qml` режим `blizzard` множит плотность ×2.2, скорость ×1.7, ветровой
-   снос ×2.5 и почти убирает угловое разнообразие — хлопья летят косыми
-   параллельными полосами.
-8. **Радуга** (`effects/Rainbow.qml`) — семь полос `assets/rainbow.svg` (с мягким
-   краем через `feGaussianBlur`), «утопленных» за нижний край: видна верхняя
-   часть дуги. Проявляется плавно за 3 с, гаснет так же. Заметность тихая
-   (`rainbowOpacity: 0.40`) — фон, а не заставка.
-9. **Ночь** — прямоугольник `#0a1a3a` поверх всего при `is_day = 0`.
-   По умолчанию рисуется только ледяной оттенок (`nightTintOpacity: 0.06` —
-   яркость экрана практически не меняется). Полное гашение экрана —
-   `nightDim: true` (сила `nightOpacity: 0.18`): включайте осознанно,
-   именно оно «крутит» яркость.
-
-### Производительность
-
-- **Окно скрывается, когда эффекта нет.** `visible:` привязан к
-  `weather.active`: ясно либо облачно (когда `dimCloudy` выключен) и не ночь —
-  окно не создаётся и пустая сцена не крутится вообще.
-- **Частиц 100–300.** Реальное число ≈ `rate × время жизни`:
-  дождь 150/с × 1.5 с ≈ 195, ливень 260/с × 1.16 с ≈ 300, снег 18/с × 16.5 с ≈ 290.
-  Крутите числа в `Config.qml`; `heavyRainRate` — главный «жир».
-- Лимит FPS отдельным переключателем в QtQuick нет: рендер и так ограничен
-  вертикальной синхронизацией монитора. Если GPU грузится — снижайте `emitRate`,
-  а не ищите фпс-кап. Дополнительно помогает `updatesEnabled: false` на окне
-  (свойство `QsWindow`) для статичных состояний.
-- `maximumEmitted` на `Emitter` — жёсткий потолок живых частиц, если захотите
-  зафиксировать потребление.
-
-### Тюнинг (Config.qml)
-
-| Свойство | По умолчанию | Что делает |
+| Property | Default | What it does |
 |---|---|---|
-| `rainRate / heavyRainRate / drizzleRate` | 150 / 260 / 60 | частиц в секунду |
-| `thunderRate` | 350 | гроза: частиц в секунду (лишь бы ливня) |
-| `snowRate` | 18 | хлопьев в секунду |
-| `rainColor` | `#7fa9e6` | цвет капель (синеватый) |
-| `rainOpacity` | 0.30 | заметность дождя (меньше — тише) |
-| `rainLength` | 20 | длина капли, px |
-| `snowColor` | `#e8f1ff` | цвет снежинок |
-| `snowOpacity` | 0.42 | заметность снега |
-| `snowSize` | 11 | базовый размер хлопья, px |
-| `fogDensity` | 2.5 | множитель количества облаков в тумане |
-| `fogSpeed` | 12 | скорость дрейфа тумана, px/с |
-| `fogOpacity` | 0.45 | заметность тумана |
-| `fogColor` | `#ccd9ea` | цвет облаков (серо-голубой — виден и на белом) |
-| `fogVisibilityM / fogDenseVisibilityM` | 1000 / 300 | туман по видимости из Open-Meteo, метры |
-| `blizzardWind` | 8 | снег + ветер сильнее — метель |
-| `sleetRainRate / sleetSnowRate` | 90 / 12 | капельная и снежная часть «дождя со снегом» |
-| `hailRate / hailColor` | 240 / `#e3eefb` | крупинки града: частота и цвет (белый) |
-| `rainbowEnabled / rainbowMinutes` | true / 30 | радуга после дождя: вкл/выкл и окно минут |
-| `rainbowMaxSunAlt / rainbowOpacity` | 42 / 0.40 | высота солнца (°) и заметность дуги |
-| `flashPeakOpacity` | 0.20 | яркость вспышки |
-| `nightDim / nightOpacity` | false / 0.18 | гашение экрана ночью — **выключено** по умолчанию |
-| `nightTintOpacity` | 0.06 | холодный оттенок ночью, яркость почти не трогает |
-| `dimCloudy / cloudyDimOpacity` | false / 0.10 | затемнение в облачность — **выключено** |
-| `refreshMinutes` | 10 | интервал опроса погоды (+0..2 мин случайности) |
-| `radarMinutes` | 3 | опрос списка кадров радара RainViewer |
-| `radarMaxAgeMinutes` | 25 | свежесть радарного кадра; старше — решает прогноз |
+| `rainRate / heavyRainRate / drizzleRate` | 150 / 260 / 60 | particles per second |
+| `thunderRate` | 350 | storm particles per second |
+| `snowRate` | 18 | flakes per second |
+| `rainColor` | `#7fa9e6` | drop color (bluish) |
+| `rainOpacity` | 0.30 | rain visibility (lower = quieter) |
+| `rainLength` | 20 | drop length, px |
+| `snowColor` | `#e8f1ff` | flake color |
+| `snowOpacity` | 0.42 | snow visibility |
+| `snowSize` | 11 | base flake size, px |
+| `fogDensity` | 2.5 | cloud count multiplier |
+| `fogSpeed` | 12 | fog drift speed, px/s |
+| `fogOpacity` | 0.45 | fog visibility |
+| `fogColor` | `#ccd9ea` | cloud color (grey-blue) |
+| `fogVisibilityM / fogDenseVisibilityM` | 1000 / 300 | fog from Open-Meteo visibility, meters |
+| `blizzardWind` | 8 | snow + stronger wind = blizzard |
+| `sleetRainRate / sleetSnowRate` | 90 / 12 | rain and snow parts of sleet |
+| `hailRate / hailColor` | 240 / `#e3eefb` | hail grains: rate and color (white) |
+| `rainbowEnabled / rainbowMinutes` | true / 30 | rainbow after rain: on/off and window |
+| `rainbowMaxSunAlt / rainbowOpacity` | 42 / 0.40 | sun altitude (°) and arc visibility |
+| `flashPeakOpacity` | 0.20 | flash brightness |
+| `nightDim / nightOpacity` | false / 0.18 | night screen dimming — **off** by default |
+| `nightTintOpacity` | 0.06 | cold night tint, barely touches brightness |
+| `dimCloudy / cloudyDimOpacity` | false / 0.10 | overcast dimming — **off** |
+| `refreshMinutes` | 10 | weather polling interval (+0..2 min random) |
+| `radarMinutes` | 3 | RainViewer frame list polling |
+| `radarMaxAgeMinutes` | 25 | radar frame freshness; older — forecast decides |
 
----
+## Real time: precipitation radar
 
-## Реальное время: радар осадков
+The forecast updates hourly, so there is a second, faster source — the
+**RainViewer radar**: a mosaic refreshed every 10 minutes, an *observation*,
+not a forecast.
 
-Прогноз обновляет состояние почасами: Yr отдаёт `next_1_hours` — бин текущего
-часа, и «дождь кончился, а капли идут», пока бин или пересмотр не догонят жизнь.
-Поэтому у прогноза есть второй, быстрый источник — **радар RainViewer**:
-мозаика радаров обновляется каждые 10 минут, это *наблюдение*, а не прогноз.
+All heavy lifting lives in a **Rust daemon** (`radar-backend/`): Quickshell
+paints `Canvas` only inside a visible window, and `Weather` lives in a `Scope`
+where `onPaint` would never fire. The daemon, a separate process:
 
-Вся тяжёлая работа вынесена в **Rust-демон** (`radar-backend/`): Quickshell
-рисует `Canvas` только внутри видимого окна, а `Weather` живёт в `Scope` —
-там `onPaint` никогда бы не вызвался. Демон — отдельный процесс, который:
+- every `radarMinutes` (3 min) fetches the frame list (~10 KB); on a new frame
+  it loads one district tile (z=10, ~250 m/px), decodes the PNG and reads the
+  pixel at our coordinates;
+- serves the ready state as a JSON line over a unix socket
+  (`/tmp/atmospheric-radar.sock`); `Radar.qml` only parses — no XHR, no Canvas;
+- starts itself: a `Process` inside `Radar.qml` launches it with the shell, a
+  watchdog (2 s) restarts it if it dies and recreates the socket on failure;
+  a second instance exits on its own.
 
-- раз в `radarMinutes` (3 мин) запрашивает список кадров (~10 КБ); при новом
-  кадре грузит один тайтл района (z=10, ~250 м на пиксель), декодирует PNG
-  и читает пиксель наших координат;
-- отдаёт готовое состояние JSON-строкой в unix-сокет
-  (`/tmp/atmospheric-radar.sock`); `Radar.qml` только парсит — ни XHR, ни
-  Canvas в QML больше нет;
-- поднимается сам: `Process` внутри `Radar.qml` стартует его вместе с шеллом,
-  а watchdog (2 с) переподнимает демона, если тот умер, и пересоздаёт сокет
-  при разрыве; защита от двух экземпляров — второй сам выходит.
+Layer rules over the forecast:
 
-Как работает слой поверх прогноза:
+- **opaque pixel → precipitating now**: rain/snow turns on even if the forecast
+  says clear (a downpour can start ahead of the forecast);
+- **transparent pixel → no precipitation**: forecast rain/snow/thunder bins are
+  muted (drizzle is nearly invisible to radar and stays from the forecast);
+- rain vs snow decided by forecast temperature (≤ 0.5 °C — snow), intensity by
+  pixel grey level (black weak, white strong);
+- a frame older than `radarMaxAgeMinutes` (25 min) or RainViewer down —
+  `fresh=false` and the forecast decides everything (fail-open layer);
+- fog, clouds, wind and temperature always come from the forecast: radar can't
+  see them.
 
-- **точка непрозрачная → осадки идут сейчас**: включается дождь/снег, даже если
-  прогноз сказал «ясно» (ливень начался раньше прогноза);
-- **точка прозрачная → осадков нет**: прогнозные бины дождя/снега/грозы
-  гасятся (морось `drizzle` радар почти не видит — она остаётся от прогноза);
-- дождь/снег различаются по температуре из прогноза (≤ 0.5 °C — снег),
-  интенсивность — по серому уровню пикселя (чёрный слабый, белый сильный);
-- кадр старше `radarMaxAgeMinutes` (25 мин) или RainViewer недоступен —
-  `fresh=false`, и всё решает прогноз, как раньше (слой fail-open);
-- туман, облачность, ветер и температура — по-прежнему от прогноза: радар их
-  не показывает. У тумана есть второй сигнал помимо кодов 45/48 — видимость
-  `visibility` из Open-Meteo (< 1000 м → туман, < 300 м → густой), но это
-  почасовые данные, реального времени от радара для тумана не существует
-  (осадковый радар физически не видит капли тумана 1–10 мкм).
+Check: `atmospheric status` → `radar=on/4m` (precipitating, frame age),
+`radar=off/4m` (clean), `radar=stale` (old frame), `radar=none` (unavailable).
+Suffix `!daemon down` means the Rust daemon isn't up; `!fetch-tile` and friends
+mean RainViewer is unreachable — details are in the quickshell log prefixed
+`[radar]`. One pass without QML: `cd radar-backend && cargo run --release
+--bin smoke -- 40.7128 -74.0060`. Radar data © RainViewer.
 
-Проверить: `atmospheric status` → `radar=on/4m` (осадки, возраст кадра),
-`radar=off/4m` (кадр чист), `radar=stale` (кадр протух), `radar=none`
-(недоступен). Суффикс `!daemon down` — демон не поднят, `!fetch-tile` и
-похожие — RainViewer недоступен; все его сообщения идут в журнал quickshell
-с префиксом `[radar]`. Один проход без QML: `cd radar-backend && cargo run
---release --bin smoke -- 52.9668 36.0625` (печатает JSON состояния и ошибку,
-если что-то не так). Атрибуция: радарные данные © RainViewer.
+## Test modes (flags)
 
----
-
-## Тестовые режимы (флаги)
-
-Чтобы не ждать дождя в Орле — эффекты можно включить принудительно. Тест
-**не трогает реальные данные**: оба провайдера продолжают опрашиваться, а поверх
-показывается выбранное состояние.
-
-### 0. Команда atmospheric (самый короткий путь)
+To skip waiting for real rain, effects can be forced. A test **does not touch
+real data**: both providers keep polling while the chosen state is layered on top.
 
 ```bash
-atmospheric rain       # дождь
-atmospheric snow       # снег
-atmospheric thunder    # гроза
-atmospheric auto       # обратно к реальной погоде
+atmospheric rain       # rain
+atmospheric snow       # snow
+atmospheric thunder    # thunderstorm
+atmospheric auto       # back to real weather
 ```
 
-Работает и на запущенном оверлее (через IPC, мгновенно), и на остановленном —
-тогда запустит с нужным тестом.
-
-### 1. Флаги при запуске (scripts/run.sh)
+Works on a running overlay (via IPC, instantly) and on a stopped one (starts it
+with the test).
 
 ```bash
-bash scripts/run.sh --rain        # дождь
-bash scripts/run.sh --snow        # снег
-bash scripts/run.sh --fog         # туман
-bash scripts/run.sh --thunder     # гроза
-bash scripts/run.sh --night       # ночь (работает вместе с реальным состоянием)
-bash scripts/run.sh --clear       # «ясно» — проверка, что окно скрывается
-bash scripts/run.sh --off         # обычный режим
-bash scripts/run.sh --help        # все режимы
-```
-
-Флаг = переменная окружения `ATMOSPHERIC_TEST=<mode>`; сам скрипт делает
-`exec quickshell -p <путь этой папки>`. Флаги должны идти первыми — остальное
-передаётся quickshell. Другой путь без скрипта:
-
-```bash
+bash scripts/run.sh --rain        # flags: --rain --snow --fog --thunder
+                                  # --night --clear --off --help
 ATMOSPHERIC_TEST=snow quickshell -p /path/to/atmospheric
 ```
 
-(Quickshell сам по себе `--rain` не принимает — у него свои CLI-опции, поэтому
-флаги реализованы через переменную окружения.)
+Flags come first (the rest goes to quickshell); the script `exec`s quickshell
+itself. Quickshell takes no `--rain` of its own — hence the environment variable.
 
-### 2. На лету, без перезапуска (IPC)
-
-`qs` обязателен флаг `-p <путь к конфигу>` — без него клиент ищет конфиг
-`default` в XDG-каталогах и падает с
-*Could not find "default" config directory or shell.qml in any valid config path*.
-Альтернатива — выставить в окружении `QS_CONFIG_PATH=/path/to/atmospheric`,
-тогда `-p` можно не писать. И проще всего — команда `atmospheric rain` / `atmospheric auto`
-(см. «Тестовые режимы»): она сама подставляет путь.
+On the fly over IPC (`qs` requires `-p <config path>`):
 
 ```bash
-qs -p /path/to/atmospheric ipc call weather test rain  # включить дождь
-qs -p /path/to/atmospheric ipc call weather test snow  # снег
-qs -p /path/to/atmospheric ipc call weather test off   # вернуть реальную погоду
-qs -p /path/to/atmospheric ipc call weather testMode   # текущий режим
+qs -p /path/to/atmospheric ipc call weather test rain  # turn rain on
+qs -p /path/to/atmospheric ipc call weather test off   # real weather again
+qs -p /path/to/atmospheric ipc call weather testMode   # current mode
+qs -p /path/to/atmospheric ipc call weather status     # state/code/error
+qs -p /path/to/atmospheric ipc show                    # all IPC targets
 ```
 
-Режимы: `rain`, `heavy-rain`, `drizzle`, `snow`, `fog`, `fog-dense`, `blizzard`,
+Modes: `rain`, `heavy-rain`, `drizzle`, `snow`, `fog`, `fog-dense`, `blizzard`,
 `sleet`, `hail`, `thunder`, `rainbow`, `cloudy`, `night`, `clear`, `off`.
-Неизвестное имя вернёт подсказку со списком.
+An unknown name returns a hint with the list. With `Config.debugSquare: true`
+the bottom-left corner shows `TEST[...] state=... code=...` — what really came
+from the API vs what the test substituted.
 
-Режим `cloudy` после убирания облачности ничего не рисует: состояние
-статуса честно остаётся `cloudy`, но оверлей пуст и днём окно скрыто.
+## Behavior over windows
 
-Полезно вместе с отладочным текстом: `Config.debugSquare: true` покажет внизу
-слева `TEST[...] state=... code=...` — видно, что реально пришло из API и что
-подменено тестом.
+The default layer is **`Top`** — fullscreen video and games cover the overlay.
+Set `Config.layer = "overlay"` to keep it above everything (applies on restart/
+reload). On X11 there are no layers: the window is always "above normal windows"
+(`aboveWindows`), fullscreen apps cover it.
 
----
-
-## Этап 4. Поведение поверх окон
-
-Решение уже принято: **слой `Top` по умолчанию** — полноэкранные видео и игры его
-перекрывают. Поставьте `Config.layer = "overlay"`, если нужен вид всегда поверх
-всего (смена применится при перезапуске/перезагрузке конфига). На X11 слоёв нет:
-окно всегда «над обычными» (`aboveWindows`), полноэкранные приложения его
-перекрывают.
-
-**Хоткей** — через IPC Quickshell (примеры для hyprland — `hyprland.conf.snippets`):
+Hotkey via quickshell IPC (Hyprland examples in `hyprland.conf.snippets`):
 
 ```bash
-qs -p /path/to/atmospheric ipc call weather toggle      # вкл/выкл
-qs -p /path/to/atmospheric ipc call weather enable      # принудительно вкл
-qs -p /path/to/atmospheric ipc call weather disable     # принудительно выкл
-qs -p /path/to/atmospheric ipc call weather refresh     # перечитать погоду вручную
-qs -p /path/to/atmospheric ipc call weather test snow   # тестовый режим (test off — снять)
-qs -p /path/to/atmospheric ipc call weather status      # состояние/код/ошибка
-qs -p /path/to/atmospheric ipc show                     # список всех IPC-целей
+qs -p /path/to/atmospheric ipc call weather toggle      # on/off
+qs -p /path/to/atmospheric ipc call weather enable      # force on
+qs -p /path/to/atmospheric ipc call weather disable     # force off
+qs -p /path/to/atmospheric ipc call weather refresh     # refetch manually
 ```
 
-Команда одна и та же в любой среде; в DE просто назначьте её на горячую клавишу
-(в Sway/i3 — `bindsym`, в KDE/GNOME — «Сочетания клавиш» → своя команда).
+The command is the same everywhere; in a DE just bind it to a key
+(`bindsym` in Sway/i3, "Custom Shortcuts" in KDE/GNOME).
 
-**Автоскрытие при играх/mpv** — `scripts/autohide-games.sh`: слушает socket2
-Hyprland, при `openwindow` с классом из regex (`mpv|steam_app_*|gamescope`) гасит
-оверлей, при закрытии последнего такого окна — включает обратно. Работает только
-на Hyprland (socket2); на других средах просто не запускайте. Недостатки честные:
-не увидит уже открытую игру при старте и не различает «вы выключили сами» vs
-«скрыто скриптом» (в обоих случаях после игры включится).
+**Game/mpv auto-hide** — `scripts/autohide-games.sh`: listens on Hyprland
+socket2, hides the overlay on `openwindow` with a class matching
+`mpv|steam_app_*|gamescope`, re-enables it when the last such window closes.
+Hyprland only (socket2); on other sessions simply don't run it.
 
----
+**Sleep and network.** After wake-up the next main-timer tick fires (≤10 min);
+faster: `qs -p /path/to/atmospheric ipc call weather refresh`. Offline, the state
+freezes on the last known weather and retries quietly once a minute.
 
-## Этап 5. Автозапуск и полировка
-
-Автозапуск настраивает `install.sh` / `atmospheric install` — в родной конфиг
-композитора или через XDG autostart (матрица — в разделе «Запуск»).
-Проверка и ручное управление:
+**Screenshots.** The layer shows up in grim captures — a Wayland property, not a
+bug. Use `atmospheric shot`: it hides the overlay, waits for the layer to
+actually vanish (on Hyprland via `hyprctl layers`, plus a pause: per-pixel
+measurement shows the frame only clears by ~0.6 s), takes the shot and restores
+the overlay via `trap` — even on a cancelled selection or an error.
 
 ```bash
-atmospheric autostart status   # среда, файл, настроен ли
-atmospheric autostart off      # убрать (с бэкапом)
-atmospheric autostart on       # вернуть
+atmospheric shot                      # full screen → ~/Pictures/Screenshot_*.png
+atmospheric shot --region             # pick a region (slurp; X11 — maim -s)
+atmospheric shot --clipboard          # to clipboard (wl-copy / xclip)
+atmospheric shot --out ~/shot.png     # to a file
+atmospheric shot --monitor DP-1       # a specific output (grim -o)
+atmospheric shot --qs-region          # Quickshell's own selector (qs -c …)
 ```
 
-Готовые строки для Hyprland — `hyprland.conf.snippets`:
+Shots are serialized: if one key has two binds (region + full screen), the
+second waits for the first and never re-enables the overlay mid-selection.
 
-```ini
-exec-once = quickshell -p /path/to/atmospheric
-bind = SUPER, F8, exec, qs -p /path/to/atmospheric ipc call weather toggle
-bind = , Print, exec, atmospheric shot --region --clipboard
-exec-once = bash /path/to/atmospheric/scripts/autohide-games.sh
-```
+## Diagnostics
 
-**Сон и сеть.** После пробуждения сработает ближайший тик основного таймера
-(≤10 мин); побыстрее — `qs -p /path/to/atmospheric ipc call weather refresh`. Пока сети нет, состояние
-заморожено на последнем известном, окно продолжает показывать прежний эффект и
-молча ретраит раз в минуту.
-
-**Скриншоты.** Layer-слой попадает в кадр grim — это свойство Wayland, а не
-баг: прямой `grim` или `hyprshot` снимет дождь. Снимайте через `atmospheric shot` —
-команда гасит оверлей, ждёт, пока слой действительно исчезнет (на Hyprland — по
-`hyprctl layers`, плюс пауза: по попиксельному замеру кадр чист лишь к ~0.6 с,
-а через 0.26 с дождь ещё в кадре), делает кадр и возвращает оверлей в прежнее
-состояние через `trap` — даже при отмене выделения или ошибке. Для региона
-`slurp` открывается сразу, а гашение идёт фоном: выделение появляется через
-0.04 с, но кадр делается уже с чистым экраном. Снимки сериализуются: если на
-одну клавишу висят два бинта (регион и весь экран), второй дождётся первого и
-не включит оверлей посреди выбора области.
-
-```bash
-atmospheric shot                      # весь экран → ~/Pictures/Screenshot_*.png
-atmospheric shot --region             # выделить область (slurp; X11 — maim -s)
-atmospheric shot --clipboard          # в буфер (wl-copy / xclip)
-atmospheric shot --out ~/shot.png     # в указанный файл
-atmospheric shot --monitor DP-1       # конкретный выход (grim -o)
-atmospheric shot --qs-region          # селектор области Quickshell (qs -c …)
-```
-
-`atmospheric shot --qs-region` сам находит запущенный `qs -c NAME` и открывает
-его селектор уже при скрытом оверлее, поэтому замороженный кадр селектора чистый;
-оверлей вернётся, когда селектор закроется.
-
-**Скрипты:**
-
-```bash
-bash scripts/screenshot.sh --region --clipboard          # обёртка над atmospheric shot
-bash scripts/autohide-games.sh                           # только Hyprland, обычно exec-once
-```
-
----
-
-## Диагностика (симптомы, пойманные вживую)
-
-| Симптом | Диагноз | Лечение |
+| Symptom | Diagnosis | Fix |
 |---|---|---|
-| `err=network error`, `code=-1 (нет данных)` | Оба API недоступны из вашей сети | Сравните: `curl -m5 'https://api.open-meteo.com/v1/forecast?latitude=52.97&longitude=36.06&current=weather_code&timezone=auto'` и `curl -m5 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=52.97&lon=36.06'`. Если висит первый — это случай из Этапа 2 (чёрная дыра до подсети Hetzner): второй провайдер уже встроен и спасает |
-| `qs ... Not ready to accept queries yet` | Живой процесс завис после горячей перезагрузки QML | `atmospheric restart` |
-| В логе «Неподдерживаемый формат изображения» для `*.svg` и/или «несовместимую библиотеку Qt» | После обновления Qt у живого процесса в памяти старые библиотеки, на диске — новые плагины | `atmospheric restart` (проверено: свежий старт декодирует SVG чисто) |
-| Капли/снежинки не видны, хотя `state=rain` | Спрайты не декодируются | См. строку выше |
-| Вечером экран заметно тускнеет | Работает ночное гашение `nightDim` | В `Config.qml` уже по умолчанию `nightDim: false` — остаётся лишь оттенок `nightTintOpacity`; убрать и его: `nightTintOpacity: 0` |
-| Дождь за окном кончился, а визуалы идут | Yr — почасовой **прогноз**: `next_1_hours` показывает дождь до границы часа или до пересмотра (минутного nowcast у Yr нет). Наблюдения «прямо сейчас» даёт радар RainViewer | `atmospheric status`: `radar=on/4m` — осадки идут (возраст кадра), `radar=off/4m` — точка чистая, прогнозные бины гасятся; `radar=stale` / `radar=none` — радар молчит, решает прогноз (`!daemon down` — не поднят Rust-демон, `!fetch-*` — RainViewer недоступен, подробности в журнале qs с префиксом `[radar]`). Если `upd=` свежий — данные живые |
+| `err=network error`, `code=-1` | both APIs unreachable from your network | Compare: `curl -m5 'https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&current=weather_code&timezone=auto'` and `curl -m5 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=40.71&lon=-74.01'`. If the first hangs, the built-in second provider already covers it |
+| `qs ... Not ready to accept queries yet` | a live process hung after a QML hot-reload | `atmospheric restart` |
+| Log shows unsupported image format for `*.svg` and/or an incompatible Qt library | Qt was updated; the live process has old libraries in memory, new plugins on disk | `atmospheric restart` (a fresh start decodes SVG cleanly) |
+| Drops/flakes invisible although `state=rain` | sprites not decoding | see the row above |
+| Screen visibly dims in the evening | night dimming `nightDim` is on | Default is `nightDim: false` — only the `nightTintOpacity` tint remains; remove that too: `nightTintOpacity: 0` |
+| Rain stopped outside but visuals continue | Yr is an hourly **forecast**: `next_1_hours` shows rain until the hour boundary or the next revision. "Right now" comes from the RainViewer radar | `atmospheric status`: `radar=on/4m` — precipitating (frame age), `radar=off/4m` — clean spot; `radar=stale` / `radar=none` — radar silent, the forecast decides (`!daemon down` — Rust daemon not up, `!fetch-*` — RainViewer unreachable; details in the qs log, prefix `[radar]`) |
 
-Логи: `/tmp/atmospheric.log` (запуск через `atmospheric`) и
-`/run/user/1000/quickshell/by-id/*/log.log` (всегда, человекочитаемый).
-Быстрые проверки: `atmospheric status`, `hyprctl layers | grep weather`.
+Logs: `/tmp/atmospheric.log` (when started via `atmospheric`) and
+`/run/user/1000/quickshell/by-id/*/log.log` (always, human-readable).
+Quick checks: `atmospheric status`, `hyprctl layers | grep weather`.
 
----
-
-## Чек-лист приёмки
-
-- [ ] Этап 1: `debugSquare: true` → красный квадрат на всех мониторах, клики
-      под ним работают, другие окна не сдвинуты.
-- [ ] Этап 2: `qs -p /path/to/atmospheric ipc call weather status` показывает осмысленный код погоды;
-      выключенная сеть не роняет состояние.
-- [ ] Этап 3: дождь/снег/туман/гроза/ночь выглядят терпимо, при ясно окна нет
-      (проверьте в `qs -p /path/to/atmospheric ipc show` / `hyprctl layers` — слоя `quickshell-weather`
-      не должно быть).
-- [ ] Тестовые флаги: `atmospheric rain` → идёт синеватый дождь;
-      `atmospheric snow` → снежинки; `atmospheric auto` → реальная погода;
-      `atmospheric clear` при реальном дожде → окно скрыто.
-- [ ] Этап 4: F8 прячет/показывает; видео на весь экран перекрывает оверлей.
-- [ ] Этап 5: `exec-once` переживает перезаход; снимок через Print не содержит
-      оверлея; после сна погода обновляется.
-
----
-
-## Разработка и релиз
+## Development and release
 
 ```bash
-make            # проверки: bash -n + qmllint + cargo check
-make run        # запустить оверлей
-make dist       # dist/atmospheric-<версия>.tar.gz (без target/ и локальных файлов)
-make clean      # убрать dist/ и target/
+make            # checks: bash -n + qmllint + cargo check
+make run        # start the overlay
+make dist       # dist/atmospheric-<version>.tar.gz (without target/ and local files)
+make clean      # remove dist/ and target/
 ```
 
-Версия хранится в `VERSION` и дублируется в `radar-backend/Cargo.toml`;
-история изменений — `CHANGELOG.md`. Перед правками в `Config.qml` стоит помнить,
-что Quickshell перечитывает конфиг на каждое сохранение, а `sed -i` подменяет
-inode и горячую перезагрузку не вызывает — используйте обычное сохранение файла.
+The version lives in `VERSION` and is mirrored in `radar-backend/Cargo.toml`;
+changes are in `CHANGELOG.md`. When editing `Config.qml` keep in mind that
+quickshell reloads the config on every save, while `sed -i` replaces the inode
+and does not trigger a hot-reload — save the file normally.
 
-## Лицензия
+## License
 
-MIT — см. `LICENSE`.
+MIT — see `LICENSE`.
 
-Данные и сервисы:
+Data and services:
 
-- прогноз — [Open-Meteo](https://open-meteo.com/) (CC BY 4.0);
-- второй провайдер — [met.no](https://www.met.no/) (© MET Norway);
-- радар — [RainViewer](https://www.rainviewer.com/) (данные © RainViewer).
+- forecast — [Open-Meteo](https://open-meteo.com/) (CC BY 4.0);
+- second provider — [met.no](https://www.met.no/) (© MET Norway);
+- radar — [RainViewer](https://www.rainviewer.com/) (data © RainViewer).
 
-Оверлей не выводит данные текстом, поэтому атрибуция в интерфейсе не нужна,
-но при публикации скриншотов с радаром укажите источники.
+The overlay shows no text data, so in-UI attribution is not required, but do
+credit the sources when publishing screenshots with the radar.

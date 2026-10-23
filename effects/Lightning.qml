@@ -1,11 +1,11 @@
-// Гроза: редкая короткая вспышка со случайным интервалом.
-// Дождь при грозе рисует отдельный Rain в WeatherOverlay.
+// Thunderstorm: rare short flash with a random interval.
+// Rain during the storm is drawn by a separate Rain in WeatherOverlay.
 import QtQuick
 
 Rectangle {
     id: flash
 
-    property real peak: 0.2    // пиковая прозрачность вспышки
+    property real peak: 0.2    // peak flash opacity
 
     anchors.fill: parent
     color: "#e8f0ff"
@@ -55,7 +55,7 @@ Rectangle {
 
         onTriggered: {
             flash.strike()
-            // новый случайный интервал на этот раз
+            // fresh random interval this time
             strikeTimer.interval = 5000 + Math.random() * 11000
             strikeTimer.restart()
         }

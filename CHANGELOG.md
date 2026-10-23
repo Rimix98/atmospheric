@@ -1,58 +1,56 @@
 # Changelog
 
-Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
-версии — [SemVer](https://semver.org/lang/ru/).
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+versions: [SemVer](https://semver.org/).
 
 ## [1.0.0] — 2026-10-22
 
-Первый публичный релиз.
+First public release.
 
-### Добавлено
+### Added
 
-- Прозрачный погодный оверлей на Quickshell: дождь, ливень, морось, снег,
-  туман (включая густой), гроза с молниями, радуга после дождя, снег с дождём,
-  метель и град.
-- Погода без API-ключей: гонка Open-Meteo и met.no (Yr), первый успешный ответ
-  побеждает; день/ночь считается по высоте солнца.
-- Радар осадков RainViewer: Rust-демон (сеть + декод PNG) общается с QML через
-  unix-сокет; при устаревших данных или ошибке — плавный откат к прогнозу.
-- Туман по двум сигналам: код WMO 45/48 и видимость из Open-Meteo (< 1000 м),
-  порог густого тумана — < 300 м.
-- Универсальная графика: Wayland-композиторы с `wlr-layer-shell` (Hyprland,
-  Sway, niri, river, Wayfire, labwc, KDE Plasma) и X11 (i3, bspwm, Openbox,
-  XFCE, KDE/GNOME на Xorg).
-- Установка одной командой `install.sh`: команда в PATH, автозапуск в родной
-  конфиг композитора или XDG autostart, сборка радара, выбор города (TUI).
-- Тестовые режимы без обращения к API: флаги запуска и IPC
+- Transparent weather overlay on Quickshell: rain, downpour, drizzle, snow,
+  fog (including dense), thunderstorm with lightning, rainbow after rain,
+  sleet, blizzard and hail.
+- Weather without API keys: a race between Open-Meteo and met.no (Yr), the
+  first successful response wins; day/night computed from solar altitude.
+- RainViewer precipitation radar: a Rust daemon (network + PNG decode) talks to
+  QML over a unix socket; stale or failed data falls back smoothly to the
+  forecast.
+- Fog from two signals: WMO code 45/48 and Open-Meteo visibility (< 1000 m),
+  dense fog below 300 m.
+- Universal graphics: Wayland compositors with `wlr-layer-shell` (Hyprland,
+  Sway, niri, river, Wayfire, labwc, KDE Plasma) and X11 (i3, bspwm, Openbox,
+  XFCE, KDE/GNOME on Xorg).
+- One-command install (`install.sh`): command in PATH, autostart in the native
+  compositor config or XDG autostart, radar build, city picker (TUI).
+- Test modes that never touch the API: launch flags and IPC
   (`atmospheric rain|snow|fog|thunder|rainbow|…`).
-- `atmospheric shot` — скриншоты без оверлея: дождь гаснет до захвата и
-  возвращается после. Регион (`slurp`), весь экран, буфер обмена, конкретный
-  монитор и селектор области Quickshell (`--qs-region`); `scripts/screenshot.sh`
-  стал тонкой обёрткой над этой командой. Регион открывается сразу, а гашение
-  идёт фоном (выделение — через 0.04 с вместо 0.8 с), кадр всё равно делается
-  уже с очищенным экраном. Параллельные снимки сериализуются — два бинта на
-  одну клавишу не мешают друг другу.
-- `atmospheric uninstall` — аккуратно убирает автозапуск и ссылки из PATH.
-- Выбор любого города мира: в TUI меню города появилась клавиша `/` — запрос
-  уходит в Nominatim (OpenStreetMap) и возвращает до 8 совпадений с названием
-  страны; вместо названия можно ввести координаты (`55.75,37.61`) — тогда сеть
-  не нужна. `atmospheric install` тоже спрашивает город (Enter — выбрать,
-  q — оставить текущий). Нет сети — остаётся локальный список
-  `assets/cities-ru.txt`.
+- `atmospheric shot` — screenshots without the overlay: rain is hidden before
+  the capture and restored after. Region (`slurp`), full screen, clipboard, a
+  specific monitor and the Quickshell region selector (`--qs-region`);
+  `scripts/screenshot.sh` became a thin wrapper. Parallel shots are serialized,
+  so two binds on one key don't interfere.
+- `atmospheric uninstall` — removes autostart and PATH symlinks cleanly.
+- Search for any city in the world: the city TUI gained a `/` key — the query
+  goes to Nominatim (OpenStreetMap) and returns up to 8 matches with the
+  country; coordinates (`55.75,37.61`) are accepted instead of a name and need
+  no network. `atmospheric install` also asks for a city (Enter — pick,
+  q — keep the current one). Offline — the bundled list `assets/cities.txt`
+  (world cities) still works.
 
-### Исправлено
+### Fixed
 
-- Ночной режим больше не меняет яркость экрана: по умолчанию только 6 %
-  холодного оттенка (`nightDim: false`).
-- Дождь рисуется голубоватым, а не белым; снежинки — собственный SVG.
-- Реакция на смену погоды в реальном времени: эффект гаснет/появляется при
-  изменении состояния, без ожидания перезапуска.
-- Запуск в отдельной сессии (`setsid`): оверлей не завершается вместе с
-  терминалом или скриптом, из которого его запустили.
+- Night mode no longer changes screen brightness by default: only a 6% cold
+  tint (`nightDim: false`).
+- Rain is drawn bluish, not white; snowflakes use a own drawn SVG.
+- Real-time reaction to weather changes: effects fade in/out on state change,
+  no restart needed.
+- Launch in a separate session (`setsid`): the overlay survives the terminal
+  or script it was started from.
 
-### Известные ограничения
+### Known limitations
 
-- GNOME Wayland не поддерживается: Mutter не реализует `wlr-layer-shell`.
-- На X11 без композитора (picom) прозрачности не будет.
-- Автоскрытие в играх (`scripts/autohide-games.sh`) работает только на
-  Hyprland (socket2).
+- GNOME Wayland is not supported: Mutter lacks `wlr-layer-shell`.
+- On X11 without a compositor (picom) there is no transparency.
+- Game auto-hide (`scripts/autohide-games.sh`) is Hyprland-only (socket2).

@@ -1,5 +1,5 @@
-// Дымовой тест демона: без сокета, один проход опроса RainViewer в stdout.
-// Проверяет сеть, выбор кадра и декод PNG на живых данных:
+// Daemon smoke test: no socket, one RainViewer poll pass to stdout.
+// Checks network, frame selection and PNG decode on live data:
 //   cargo run --release --bin smoke -- 52.9668 36.0625
 use atmospheric_radar::{poll_once, RadarState};
 
@@ -9,7 +9,7 @@ fn main() {
     let st = poll_once(lat, lon, 25, &RadarState::default());
     println!("{}", serde_json::to_string_pretty(&st).unwrap());
     if st.error.is_empty() {
-        eprintln!("OK: сеть + декод PNG отработали");
+        eprintln!("OK: network + PNG decode worked");
     } else {
         eprintln!("ERROR: {}", st.error);
         std::process::exit(1);

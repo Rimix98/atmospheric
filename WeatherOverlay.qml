@@ -1,4 +1,4 @@
-// Слой эффектов: выбирает, что рисовать по состоянию погоды.
+// Effects layer: picks what to draw from the weather state.
 import QtQuick
 import "effects"
 
@@ -12,12 +12,12 @@ Item {
     readonly property bool precip: st === "rain" || st === "heavyRain"
                                 || st === "drizzle" || st === "thunder"
                                 || st === "sleet"
-    // густой туман / метель / град — модификаторы состояния из Weather
+    // dense fog / blizzard / hail — state modifiers from Weather
     readonly property bool fogDense: weather && weather.effectiveFogDense
     readonly property bool blizzard: weather && weather.effectiveBlizzard
     readonly property bool hail: weather && weather.effectiveHail
 
-    // ---------- лёгкое затемнение при облачности ----------
+    // ---------- light dimming for cloud cover ----------
     Rectangle {
         anchors.fill: parent
         color: "#101820"
@@ -25,8 +25,8 @@ Item {
         opacity: root.cfg ? root.cfg.cloudyDimOpacity : 0.1
     }
 
-    // ---------- дождь / морось / гроза / дождь со снегом ----------
-    // Гроза (thunder) — ливень и гуще: rate выше heavyRainRate плюс вспышки.
+    // ---------- rain / drizzle / thunderstorm / sleet ----------
+    // Thunderstorm (thunder) is heavier than heavyRain: rate above heavyRainRate plus flashes.
     Rain {
         anchors.fill: parent
         visible: root.precip
@@ -48,7 +48,7 @@ Item {
         tilt: root.weather ? root.weather.effectiveTilt : 0
     }
 
-    // ---------- град: короткие быстрые крупинки поверх грозы (WMO 96/99) ----------
+    // ---------- hail: short fast grains over the storm (WMO 96/99) ----------
     Rain {
         anchors.fill: parent
         visible: root.hail
@@ -61,7 +61,7 @@ Item {
         tilt: root.weather ? root.weather.effectiveTilt : 0
     }
 
-    // ---------- снег / дождь со снегом / метель ----------
+    // ---------- snow / sleet / blizzard ----------
     Snow {
         anchors.fill: parent
         visible: root.st === "snow" || root.st === "sleet"
@@ -74,8 +74,8 @@ Item {
         blizzard: root.blizzard
     }
 
-    // ---------- туман: небольшие облака, очень медленный дрейф ----------
-    // Густой туман (видимость < fogDenseVisibilityM): облака плотнее и заметнее.
+    // ---------- fog: small clouds, very slow drift ----------
+    // Dense fog (visibility < fogDenseVisibilityM): clouds are denser and more visible.
     Fog {
         anchors.fill: parent
         visible: root.st === "fog"
@@ -86,23 +86,23 @@ Item {
         windX: (root.weather ? root.weather.effectiveTilt : 0) * 0.15
     }
 
-    // ---------- радуга после дождя ----------
+    // ---------- rainbow after rain ----------
     Rainbow {
         anchors.fill: parent
         visible: root.st === "rainbow"
         opacityScale: root.cfg.rainbowOpacity
     }
 
-    // ---------- вспышки молний ----------
+    // ---------- lightning flashes ----------
     Lightning {
         anchors.fill: parent
         visible: root.st === "thunder"
         peak: root.cfg.flashPeakOpacity
     }
 
-    // ---------- ночь: холодный оттенок (яркость почти не трогает) ----------
-    // Гашение экрана — только при включённом nightDim: именно оно «крутит»
-    // яркость, поэтому по умолчанию спит.
+    // ---------- night: cool tint (brightness barely touched) ----------
+    // The screen dim itself only happens with nightDim enabled: that's what
+    // actually "turns" brightness, so it sleeps by default.
     Rectangle {
         anchors.fill: parent
         color: "#0a1a3a"
@@ -113,7 +113,7 @@ Item {
                                       : root.cfg.nightTintOpacity)
     }
 
-    // ---------- отладка (этап 1 и диагностика) ----------
+    // ---------- debug (stage 1 and diagnostics) ----------
     Rectangle {
         anchors.fill: parent
         visible: root.cfg && root.cfg.debugSquare

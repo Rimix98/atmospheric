@@ -1,18 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
   <defs>
-    <!-- Мягкий «пуф»: центр плотный, к краю фигуры — прозрачность.
-         Градиент считается в координатах самой фигуры (objectBoundingBox),
-         поэтому у каждого круга/эллипса своя растяжка и у контура
-         не остаётся жёсткой кромки. -->
+    <!-- Soft "puff": dense at the center, transparent at the shape edge.
+         The gradient is computed in the shape's own coordinates
+         (objectBoundingBox), so each circle/ellipse has its own stretch
+         and no hard rim remains along the outline. -->
     <radialGradient id="puff">
       <stop offset="0" stop-color="#ffffff" stop-opacity="0.8"/>
       <stop offset="0.45" stop-color="#f0f6fc" stop-opacity="0.5"/>
       <stop offset="1" stop-color="#e6eef7" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <!-- Облако = слияние мягких пятен; где накладываются — плотнее.
-       Рисуется в квадрате 160x160: ImageParticle растягивает картинку
-       до size x size, поэтому квадрат сохраняет пропорции облака. -->
+  <!-- Cloud = merge of soft blobs; where they overlap — denser.
+       Drawn in a 160x160 square: ImageParticle stretches the image
+       to size x size, so the square keeps the cloud's proportions. -->
   <ellipse cx="80" cy="98" rx="54" ry="24" fill="url(#puff)"/>
   <circle cx="56" cy="84" r="26" fill="url(#puff)"/>
   <circle cx="97" cy="88" r="22" fill="url(#puff)"/>

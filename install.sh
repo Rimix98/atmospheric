@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 # ============================================================
-# Установка atmospheric одной командой — из любого каталога.
+# Install atmospheric in one command — from any directory.
 #
-#   bash /путь/до/atmospheric/install.sh
+#   bash /path/to/atmospheric/install.sh
 #
-# Что делает:
-#   1) кладёт команду `atmospheric` в PATH
-#      (~/.local/bin, а если его нет в PATH — /usr/local/bin);
-#   2) настраивает автозапуск под текущую среду:
+# What it does:
+#   1) puts the `atmospheric` command in PATH
+#      (~/.local/bin, or /usr/local/bin if that is not in PATH);
+#   2) sets up autostart for the current environment:
 #      Hyprland, Sway, niri, river, Wayfire, labwc, i3, bspwm, Openbox
-#      — в родной конфиг; KDE, GNOME (Xorg), XFCE и прочие DE —
-#      через XDG autostart (~/.config/autostart);
-#   3) собирает радар-демон (если есть cargo);
-#   4) при первом запуске спрашивает город (TUI).
+#      — into the native config; KDE, GNOME (Xorg), XFCE and other DEs —
+#      via XDG autostart (~/.config/autostart);
+#   3) builds the radar daemon (if cargo is available);
+#   4) asks for the city on first run (TUI).
 #
-# Опции:
-#   --system          поставить в /usr/local/bin (через sudo)
-#   --no-autostart    не трогать автозапуск
-#   --autostart       то же, но явно включить автозапуск
+# Options:
+#   --system          install to /usr/local/bin (via sudo)
+#   --no-autostart    do not touch autostart
+#   --autostart       same, but explicitly enable autostart
 #
-# GNOME Wayland не поддерживается (нет wlr-layer-shell) — скрипт скажет
-# об этом и не будет прописывать заведомо нерабочий автозапуск.
+# GNOME Wayland is not supported (no wlr-layer-shell) — the script will
+# say so and skip writing an autostart that cannot work.
 # ============================================================
 set -euo pipefail
 

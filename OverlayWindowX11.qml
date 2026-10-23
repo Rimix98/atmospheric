@@ -1,12 +1,12 @@
-// Окно оверлея для X11: i3, bspwm, Openbox, awesome, XFCE, KDE/GNOME X11
-// и любые другие X11 WM/DE (Quickshell собирается с X11-бэкендом).
+// Overlay window for X11: i3, bspwm, Openbox, awesome, XFCE, KDE/GNOME X11
+// and any other X11 WM/DE (Quickshell built with the X11 backend).
 //
-// Особенности X11:
-//  - слоёв (layer-shell) нет; «над обычными окнами» = aboveWindows
-//    (WindowStaysOnTopHint), focusable: false — окно не забирает фокус;
-//  - пустая mask = клики проходят насквозь (WindowTransparentForInput);
-//  - прозрачность требует включённого композитора: в DE он уже есть,
-//    в голых WM нужен picom/compton.
+// X11 specifics:
+//  - no layers (layer-shell); "above normal windows" = aboveWindows
+//    (WindowStaysOnTopHint), focusable: false — the window takes no focus;
+//  - empty mask = clicks pass through (WindowTransparentForInput);
+//  - transparency needs a compositor enabled: DEs have one built in,
+//    bare WMs need picom/compton.
 import QtQuick
 import Quickshell
 
@@ -27,8 +27,8 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     mask: Region {}
 
-    // Слоя нет — просто поверх обычных окон, без фокуса.
-    // Config.layer на X11 не действует (слоёв не существует).
+    // No layers — just above normal windows, without focus.
+    // Config.layer does nothing on X11 (there are no layers).
     aboveWindows: true
     focusable: false
 

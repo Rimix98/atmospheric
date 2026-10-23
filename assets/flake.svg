@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-  <!-- Снежинка: 6 лучей с веточками, повтор одного луча поворотом.
-       Квадрат 24x24 — ImageParticle масштабирует картинку в квадрат
-       размера частицы, пропорции сохраняются при любом size. -->
+  <!-- Snowflake: 6 rays with twigs, one ray repeated by rotation.
+       24x24 square — ImageParticle scales the image to a square of
+       the particle size, proportions are kept at any size. -->
   <g fill="none" stroke="#ffffff" stroke-width="1.4"
      stroke-linecap="round" stroke-linejoin="round">
     <path d="M12 12 L12 2.6 M10.3 7.4 L12 9.3 L13.7 7.4" transform="rotate(0 12 12)"/>

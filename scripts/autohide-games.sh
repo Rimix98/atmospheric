@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
-# Прячет погодный оверлей, пока открыто окно из списка классов (игры, mpv),
-# и включает обратно, когда все такие окна закрыты.
+# Hides the weather overlay while a window from the class list is open
+# (games, mpv), and shows it again when all such windows are closed.
 #
-# Слушает socket2 Hyprland (события openwindow/closewindow).
-# Зависимости: socat, hyprctl, qs (quickshell).
+# Listens on the Hyprland socket2 (openwindow/closewindow events).
+# Dependencies: socat, hyprctl, qs (quickshell).
 #
-# Запуск: exec-once = bash /path/to/atmospheric/scripts/autohide-games.sh
+# Run: exec-once = bash /path/to/atmospheric/scripts/autohide-games.sh
 #
-# Ограничение: если запустить скрипт, когда игра уже открыта, он об этом
-# не узнает; скрипт должен стартовать до игр (обычно exec-once — как раз так).
+# Caveat: if the script starts while a game is already open, it won't
+# know about it; the script must start before games (usually exec-once — exactly so).
 set -u
 
 DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Классы окон, при которых оверлей гасится. Правьте под себя.
+# Window classes that hide the overlay. Edit to taste.
 CLASSES_REGEX='^(mpv|steam_app_[0-9]+|gamescope)$'
 
 SIG="${HYPRLAND_INSTANCE_SIGNATURE:-}"
 SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/hypr/${SIG}/.socket2.sock"
 
 if [[ -z "$SIG" || ! -S "$SOCK" ]]; then
-    echo "autohide-games: socket Hyprland не найден: $SOCK" >&2
+    echo "autohide-games: Hyprland socket not found: $SOCK" >&2
     exit 1
 fi
 
-declare -A held    # адреса окон, из-за которых оверлей скрыт
-openCount=0        # сколько таких окон открыто
-hidden=0           # скрыли ли мы оверлей сами
+declare -A held    # window addresses that currently hold the overlay hidden
+openCount=0        # how many such windows are open
+hidden=0           # whether we hid the overlay ourselves
 
 hide() {
     if [[ $hidden -eq 1 ]]; then
@@ -48,10 +48,10 @@ while IFS= read -r line; do
     case "$line" in
         openwindow\>\>*)
             rest="${line#openwindow>>}"
-            addr="${rest%%,*}"        # адрес окна
-            rest="${rest#*,}"         # рабочая область
+            addr="${rest%%,*}"        # window address
+            rest="${rest#*,}"         # workspace
             rest="${rest#*,}"
-            class="${rest%%,*}"       # класс окна
+            class="${rest%%,*}"       # window class
             if [[ "$class" =~ $CLASSES_REGEX && -z "${held[$addr]:-}" ]]; then
                 held["$addr"]=1
                 openCount=$((openCount + 1))

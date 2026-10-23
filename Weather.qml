@@ -1,12 +1,12 @@
-// Клиент погоды: гонка двух провайдеров — Open-Meteo и met.no (Yr).
-// Запросы идут ПАРАЛЛЕЛЬНО, побеждает первый успешный; проигравший отменяется.
+// Weather client: a race of two providers — Open-Meteo and met.no (Yr).
+// Requests run in PARALLEL; the first success wins, the loser is cancelled.
 //
-// Зачем два: с некоторых сетей маршрут до api.open-meteo.com (Hetzner FSN1,
-// 94.130.142.35) чёрная дыра — висят и curl, и XHR (проверено: TCP-таймаут,
-// при этом DNS честный). api.met.no при этом отвечает за ~0.3 с, так что
-// оверлей работает в любом случае.
+// Why two: from some networks the route to api.open-meteo.com (Hetzner FSN1,
+// 94.130.142.35) is a black hole — both curl and XHR hang (checked: TCP timeout,
+// DNS is fine). api.met.no answers in ~0.3 s, so the
+// overlay works either way.
 //
-// При ошибке обоих состояние НЕ сбрасывается — остаётся последнее известное.
+// If both fail the state is NOT reset — the last known one remains.
 import QtQuick
 import Quickshell
 
@@ -15,35 +15,35 @@ Item {
 
     property var cfg: null
 
-    // ---------- последнее известное состояние ----------
+    // ---------- last known state ----------
     property int code: -1
     property string state: "unknown"     // clear|cloudy|fog|drizzle|rain|heavyRain|sleet|snow|thunder
-    property real intensity: 0           // 0..1 — множитель интенсивности эффекта
-    property real windSpeed: 0           // м/с
-    property int windDirection: 0        // градусы, откуда дует (метео-стандарт)
-    property real temperature: 15        // °C у земли — радар решает, дождь это или снег
-    property int isDay: 1                // 1 — день, 0 — ночь
-    property bool loaded: false          // был ли хоть один успешный ответ
+    property real intensity: 0           // 0..1 — effect intensity multiplier
+    property real windSpeed: 0           // m/s
+    property int windDirection: 0        // degrees, wind origin direction (meteorological standard)
+    property real temperature: 15        // °C at ground level — radar decides rain vs snow
+    property int isDay: 1                // 1 — day, 0 — night
+    property bool loaded: false          // whether any request ever succeeded
     property string lastError: ""
-    property real lastSuccess: 0         // Date.now() последнего успеха
-    property string provider: ""         // откуда данные: open-meteo | yr
+    property real lastSuccess: 0         // Date.now() of the last success
+    property string provider: ""         // data source: open-meteo | yr
 
-    property real visibilityM: -1        // видимость в метрах (Open-Meteo), −1 = данных нет
-    property double lastRainMs: 0        // момент последнего «мокрого» состояния (для радуги)
-    property int nowTick: 0              // тик раз в минуту — пересчёт условий, зависящих от времени
+    property real visibilityM: -1        // visibility in meters (Open-Meteo), −1 = no data
+    property double lastRainMs: 0        // time of the last "wet" state (for the rainbow)
+    property int nowTick: 0              // tick once a minute — recompute time-dependent conditions
 
-    // ---------- гонка запросов ----------
-    property bool inflight: false        // идёт раунд опроса
-    property bool won: false             // в этом раунде уже есть успех
-    property int pending: 0              // сколько запросов ещё не завершено
-    property var cancellers: []           // функции отмены текущего раунда
+    // ---------- request race ----------
+    property bool inflight: false        // a poll round is in progress
+    property bool won: false             // a success already happened this round
+    property int pending: 0              // how many requests haven't finished yet
+    property var cancellers: []           // cancel functions for the current round
 
-    // ---------- тестовые режимы ----------
-    // Задаются переменной окружения ATMOSPHERIC_TEST (см. scripts/run.sh):
+    // ---------- test modes ----------
+    // Set via the ATMOSPHERIC_TEST env var (see scripts/run.sh):
     //   rain | heavy-rain | drizzle | snow | fog | thunder | cloudy | night | clear
-    // или в рантайме: qs -p /path/to/atmospheric ipc call weather test snow
-    // Тест НЕ трогает реальные данные: API продолжает опрашиваться,
-    // а effective*-свойства подменяют то, что рисует оверлей.
+    // or at runtime: qs -p /path/to/atmospheric ipc call weather test snow
+    // Tests do NOT touch real data: the API is still polled,
+    // and the effective* properties override what the overlay draws.
     property string testMode: {
         if (typeof Quickshell.env !== "function")
             return "";
@@ -65,14 +65,14 @@ Item {
         if (known.indexOf(m) === -1)
             return "unknown mode '" + mode + "', use: off|clear|cloudy|fog|fog-dense|drizzle|rain|heavy-rain|snow|blizzard|sleet|thunder|hail|rainbow|night";
         testMode = (m === "off" || m === "auto") ? "" : m;
-        return testMode === "" ? "test off (реальная погода)" : "test: " + testMode;
+        return testMode === "" ? "test off (real weather)" : "test: " + testMode;
     }
 
-    // Состояние без «украшений» (пока — радуги): данные или тест.
+    // State without "decorations" (rainbow for now): real data or test.
     readonly property string composedState: {
         switch (testMode) {
         case "":             return composeState(state);
-        case "night":        return composeState(state);         // ночь — это isDay, состояние реальное
+        case "night":        return composeState(state);         // night is isDay, the state is still real
         case "clear":
         case "off":          return "clear";
         case "cloudy":       return "cloudy";
@@ -85,7 +85,7 @@ Item {
         case "snow":         return "snow";
         case "blizzard":     return "snow";
         case "sleet":        return "sleet";
-        case "hail":         return "thunder";                   // град идёт только с грозой
+        case "hail":         return "thunder";                   // hail only comes with thunder
         case "thunder":
         case "storm":        return "thunder";
         case "rainbow":      return "rainbow";
@@ -93,12 +93,12 @@ Item {
         }
     }
 
-    // Радуга: дождь кончился недавно, небо чистое, а солнце низко
-    // (дуга видна только пока alt < 42° — физика первичного радуга).
+    // Rainbow: rain ended recently, the sky is clear, and the sun is low
+    // (the arc is only visible while alt < 42° — primary rainbow physics).
     readonly property bool rainbowNow: {
-        nowTick;                                 // время не реактивно — тик раз в минуту
+        nowTick;                                 // time is not reactive — tick once a minute
         if (testMode !== "")
-            return false;                        // в тесте rainbow задаётся кейсом выше
+            return false;                        // in test mode rainbow is set by the case above
         if (!cfg || !cfg.rainbowEnabled)
             return false;
         if (composedState !== "clear" && composedState !== "cloudy")
@@ -111,30 +111,30 @@ Item {
         return alt > 0.5 && alt < cfg.rainbowMaxSunAlt;
     }
 
-    // Что реально рисует оверлей (тест приоритетнее реальных данных).
+    // What the overlay actually draws (test beats real data).
     readonly property string effectiveState:
         (testMode === "" && rainbowNow) ? "rainbow" : composedState;
 
-    // ---------- модификаторы текущего состояния ----------
-    // Град в таблице WMO идёт только с грозой (коды 96/99).
+    // ---------- current state modifiers ----------
+    // Hail in the WMO table only comes with thunder (codes 96/99).
     readonly property bool effectiveHail: {
         if (testMode === "hail") return true;
         return testMode === "" && (code === 96 || code === 99);
     }
-    // Метель: снег + ветер сильнее порога.
+    // Blizzard: snow plus wind above the threshold.
     readonly property bool effectiveBlizzard: {
         if (testMode === "blizzard") return true;
         return testMode === "" && effectiveState === "snow"
                && windSpeed >= (cfg ? cfg.blizzardWind : 8);
     }
-    // Густой туман по глубине видимости (коды 45/48 остаются основным сигналом).
+    // Dense fog by visibility depth (codes 45/48 stay the primary signal).
     readonly property bool effectiveFogDense: {
         if (testMode === "fog-dense") return true;
         return testMode === "" && visibilityM >= 0
                && visibilityM < (cfg ? cfg.fogDenseVisibilityM : 300);
     }
 
-    // Пока шёл дождь — запоминаем момент: он нужен для радуги.
+    // While rain was falling — remember the moment: it's needed for the rainbow.
     onEffectiveStateChanged: {
         switch (effectiveState) {
         case "drizzle": case "sleet": case "rain":
@@ -152,8 +152,8 @@ Item {
 
     readonly property real effectiveIntensity: {
         if (testMode === "") {
-            // Свежий радар видит осадки — интенсивность по серому уровню
-            // пикселя (чёрный слабый, белый сильный); иначе от прогноза.
+            // A fresh radar sees precipitation — intensity from the gray pixel
+            // level (black = weak, white = strong); otherwise from the forecast.
             if (radar.fresh && radar.precip)
                 return Math.min(1, 0.3 + radar.gray * 0.7);
             return intensity;
@@ -164,22 +164,22 @@ Item {
         return 0.7;
     }
 
-    // В тесте без загруженных данных — лёгкий наклон, чтобы капли были видны.
+    // In a test without loaded data — a slight tilt so drops are visible.
     readonly property real effectiveTilt: (testing && !loaded) ? 8 : tilt
 
-    // Наклон капель по ветру, градусы (±25).
-    // wind_direction_10m — «откуда»: движение на восток = -sin(dir).
+    // Drop tilt by wind, degrees (±25).
+    // wind_direction_10m is "from": eastward motion = -sin(dir).
     readonly property real tilt: {
         var horizontal = -Math.sin(windDirection * Math.PI / 180) * windSpeed;
         return Math.max(-25, Math.min(25, horizontal * 1.2));
     }
 
-    // ---------- радар RainViewer: слой «реального времени» осадков ----------
-    // Прогноз (Yr) отдаёт осадки почасовыми бинами и «отстаёт» от жизни:
-    // дождь прошёл — бин ещё час поливается. Радар — наблюдение каждые
-    // 10 минут: свежий кадр с пикселем осадков включает дождь/снег, чистая
-    // точка — гасит прогнозные бины. Туман/ветер/облачность радар не видит,
-    // остаются от прогноза. В status: radar=on/3m | off/3m | stale | none.
+    // ---------- RainViewer radar: a "real-time" precipitation layer ----------
+    // The forecast (Yr) gives precipitation in hourly bins and "lags" reality:
+    // rain has passed but the bin still pours for an hour. The radar observes every
+    // 10 minutes: a fresh frame with a precip pixel turns rain/snow on, a clean
+    // point kills the forecast bins. Fog/wind/cloud cover the radar can't see
+    // stays from the forecast. In status: radar=on/3m | off/3m | stale | none.
     Radar {
         id: radar
         cfg: root.cfg
@@ -189,57 +189,57 @@ Item {
     readonly property real   radarDecodedMs: radar.decodedMs
     readonly property string radarError:     radar.lastError
 
-    // Сводка прогноза и радара в одно состояние оверлея (тест-режим — выше).
+    // Merge forecast and radar into one overlay state (test mode is above).
     function composeState(base) {
         if (!radar.fresh)
             return base;
         if (radar.precip) {
             if (base === "thunder")
-                return "thunder";            // прогноз знает грозу — радар не отменяет
+                return "thunder";            // forecast knows the thunder — the radar doesn't cancel it
             if (temperature <= 0.5)
-                return "snow";               // холод + радар = снег
+                return "snow";               // cold + radar = snow
             if (base === "drizzle" || base === "rain" || base === "heavyRain" || base === "sleet")
-                return base;                 // интенсивность — от прогноза
-            return "rain";                   // осадки начались раньше прогноза
+                return base;                 // intensity — from the forecast
+            return "rain";                   // precipitation started ahead of the forecast
         }
-        // Радар чист: прогнозные ливни/снег/грозу/смешанные осадки гасим.
-        // Морось (drizzle) оставляем — радар её почти не видит, а капли лёгкие.
+        // Radar is clear: kill forecast showers/snow/thunder/mixed precipitation.
+        // Drizzle stays — the radar barely sees it, and the drops are light.
         if (base === "rain" || base === "heavyRain" || base === "snow" || base === "thunder" || base === "sleet")
             return "cloudy";
         return base;
     }
 
-    // Рисовать ли оверлей вообще (в тесте — всегда, кроме явного clear/off
-    // и облачности: dimCloudy убран, облачность больше ничего не показывает).
+    // Whether to draw the overlay at all (in a test — always, except explicit clear/off
+    // and cloudy: dimCloudy removed, cloudy shows nothing anymore).
     readonly property bool active: (loaded || testing) && (
         (effectiveState !== "clear" && effectiveState !== "cloudy")
         || effectiveIsDay === 0
         || (effectiveState === "cloudy" && cfg && cfg.dimCloudy)
     )
 
-    // ---------- маппинг WMO ----------
+    // ---------- WMO mapping ----------
     function stateFor(c) {
         if (c >= 0 && c <= 3)  return c <= 1 ? "clear" : "cloudy";
         if (c === 45 || c === 48) return "fog";
-        if (c >= 51 && c <= 55) return "drizzle";           // морось
+        if (c >= 51 && c <= 55) return "drizzle";           // drizzle
         if (c === 56 || c === 57 || c === 66 || c === 67)
-            return "sleet";                                 // переохлаждённая морось/дождь → дождь со снегом
+            return "sleet";                                 // freezing drizzle/rain → rain with snow
         if (c >= 61 && c <= 63) return "rain";
-        if (c === 65) return "heavyRain";                   // ливень
+        if (c === 65) return "heavyRain";                   // downpour
         if (c === 80) return "rain";
-        if (c >= 81 && c <= 82) return "heavyRain";         // сильные ливни
+        if (c >= 81 && c <= 82) return "heavyRain";         // heavy showers
         if (c >= 71 && c <= 77) return "snow";
         if (c === 85 || c === 86) return "snow";
-        if (c >= 95 && c <= 99) return "thunder";           // 96/99 — с градом (см. effectiveHail)
-        return "cloudy";                                     // неизвестный код — аккуратное облако
+        if (c >= 95 && c <= 99) return "thunder";           // 96/99 — with hail (see effectiveHail)
+        return "cloudy";                                     // unknown code — a gentle cloud
     }
 
     function intensityFor(c) {
         if (c === 61 || c === 80) return 0.45;
         if (c === 63) return 0.7;
         if (c === 65) return 1.0;
-        if (c === 56 || c === 66) return 0.35;              // дождь со снегом: лёгкий
-        if (c === 57 || c === 67) return 0.9;               // дождь со снегом: плотный
+        if (c === 56 || c === 66) return 0.35;              // rain with snow: light
+        if (c === 57 || c === 67) return 0.9;               // rain with snow: heavy
         if (c === 81) return 0.85;
         if (c === 82) return 1.0;
         if (c >= 51 && c <= 55) return 0.3 + (c - 51) * 0.05;
@@ -250,7 +250,7 @@ Item {
         return 0.6;
     }
 
-    // Символ Yr (met.no) → ближайший WMO-код, чтобы работал общий маппинг.
+    // Yr (met.no) symbol → nearest WMO code, so the common mapping works.
     function yrToWmo(sym) {
         var s = String(sym).toLowerCase();
         if (s.indexOf("thunder") !== -1) return s.indexOf("heavy") !== -1 ? 99 : 95;
@@ -260,7 +260,7 @@ Item {
             return s.indexOf("shower") !== -1 ? 85 : 73;
         }
         if (s.indexOf("sleet") !== -1 || s.indexOf("freezing") !== -1 || s.indexOf("wintry") !== -1)
-            return s.indexOf("heavy") !== -1 ? 67 : 66;     // дождь со снегом
+            return s.indexOf("heavy") !== -1 ? 67 : 66;     // rain with snow
         if (s.indexOf("rain") !== -1 || s.indexOf("drizzle") !== -1) {
             if (s.indexOf("heavy") !== -1) return s.indexOf("shower") !== -1 ? 81 : 65;
             if (s.indexOf("light") !== -1) return s.indexOf("shower") !== -1 ? 80 : 61;
@@ -274,12 +274,12 @@ Item {
         return 3;
     }
 
-    // Высота Солнца в градусах (алгоритм SunCalc).
-    // Сверено с api.met.no/weatherapi/sunrise для Орла (2026-10-15):
-    // рассвет 07:01 = 07:01, закат 17:41 ≈ 17:40, высота в полдень ±0.2°.
+    // Sun altitude in degrees (SunCalc algorithm).
+    // Checked against api.met.no/weatherapi/sunrise for Orel (2026-10-15):
+    // sunrise 07:01 = 07:01, sunset 17:41 ≈ 17:40, noon altitude ±0.2°.
     function sunAltitudeDeg(dateMs, lat, lon) {
         var rad = Math.PI / 180;
-        var d = dateMs / 86400000 + 2440587.5 - 2451545.0;   // дней от J2000
+        var d = dateMs / 86400000 + 2440587.5 - 2451545.0;   // days since J2000
         var M = rad * (357.5291 + 0.98560028 * d);
         var C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
         var L = M + C + rad * 102.9372 + Math.PI;
@@ -298,7 +298,7 @@ Item {
             + "?latitude=" + cfg.latitude
             + "&longitude=" + cfg.longitude
             + "&current=weather_code,temperature_2m,wind_speed_10m,wind_direction_10m,is_day"
-            + "&hourly=visibility"                // второй сигнал тумана (в метрах, почасово)
+            + "&hourly=visibility"                // second fog signal (in meters, hourly)
             + "&wind_speed_unit=ms"
             + "&timezone=auto";
     }
@@ -309,13 +309,13 @@ Item {
             + "&lon=" + cfg.longitude;
     }
 
-    // ---------- применение ответов ----------
+    // ---------- applying responses ----------
     function commit() {
         loaded = true;
         lastSuccess = Date.now();
     }
 
-    // open-meteo: data = полный ответ (current + hourly)
+    // open-meteo: data = the full response (current + hourly)
     function applyOm(data) {
         var cur = data.current || data;
         code = cur.weather_code;
@@ -330,8 +330,8 @@ Item {
         if (typeof cur.is_day === "number")
             isDay = cur.is_day;
 
-        // Туман по видимости — второй сигнал помимо кодов 45/48.
-        // Видимость низкая и при сильном дожде/снегу — те состояния выше по приоритету.
+        // Fog by visibility — a second signal besides codes 45/48.
+        // Visibility is also low in heavy rain/snow — those states have priority.
         visibilityM = -1;
         var h = data.hourly;
         if (h && h.visibility && h.time && cur.time) {
@@ -346,8 +346,8 @@ Item {
         commit();
     }
 
-    // met.no/Yr: data = полный Feature; WMO-кода нет — выводим из символа,
-    // is_day считаем сами (в ответе Yr его нет).
+    // met.no/Yr: data = the full Feature; no WMO code — derive it from the symbol,
+    // compute is_day ourselves (Yr's response lacks it).
     function applyYr(f) {
         var d0 = f.properties.timeseries[0].data || {};
         var det = (d0.instant && d0.instant.details) || {};
@@ -362,7 +362,7 @@ Item {
             state = stateFor(code);
             intensity = intensityFor(code);
         } else {
-            // Символа нет — облачность из instant.details.
+            // No symbol — cloud cover from instant.details.
             var cloud = (typeof det.cloud_area_fraction === "number") ? det.cloud_area_fraction : 0;
             state = cloud >= 50 ? "cloudy" : "clear";
             code = state === "cloudy" ? 3 : 0;
@@ -376,13 +376,13 @@ Item {
         if (typeof det.air_temperature === "number")
             temperature = det.air_temperature;
         isDay = sunAltitudeDeg(Date.now(), cfg.latitude, cfg.longitude) > -0.833 ? 1 : 0;
-        visibilityM = -1;                       // Yr видимости не отдаёт — сигнала тумана нет
+        visibilityM = -1;                       // Yr provides no visibility — no fog signal
         commit();
     }
 
-    // ---------- гонка ----------
-    // settle учитывает ровно один исход каждого запроса (флаг myDone в замыкании),
-    // поэтому abort проигравшего не «досчитает» pending повторно.
+    // ---------- race ----------
+    // settle accounts for exactly one outcome per request (myDone flag in the closure),
+    // so aborting the loser doesn't decrement pending again.
     function settle(ok, data, err, src) {
         pending = pending - 1;
         if (ok && !won) {
@@ -393,7 +393,7 @@ Item {
             else
                 root.applyYr(data);
             lastError = "";
-            cancelRound();                       // проигравший: myDone → no-op + abort
+            cancelRound();                       // loser: myDone → no-op + abort
         } else if (!ok && !won) {
             lastError = lastError === "" ? (src + ": " + err)
                                          : (lastError + " | " + src + ": " + err);
@@ -409,7 +409,7 @@ Item {
 
     function finishRound() {
         if (!inflight)
-            return;                              // идемпотентно
+            return;                              // idempotent
         inflight = false;
         cancellers = [];
     }
@@ -460,12 +460,12 @@ Item {
                     if (typeof cur.weather_code !== "number")
                         finish(false, null, "bad payload");
                     else
-                        finish(true, d, "");    // applyOm нужен и hourly.visibility
+                        finish(true, d, "");    // applyOm needs hourly.visibility too
                 } catch (e) {
                     finish(false, null, "parse: " + e);
                 }
             } else {
-                // Сетевая ошибка: состояние не трогаем, остаётся последнее известное.
+                // Network error: state untouched, the last known one remains.
                 finish(false, null, xhr.status === 0 ? "network error" : "http " + xhr.status);
             }
         };
@@ -493,8 +493,8 @@ Item {
         }
         try {
             xhr.open("GET", yrEndpoint(), true);
-            // met.no просит осмысленный User-Agent; если Qt не даст заголовок —
-            // сервер всё равно отвечает (проверено на живом инстансе).
+            // met.no asks for a meaningful User-Agent; if Qt won't send the header —
+            // the server answers anyway (checked on a live instance).
             try { xhr.setRequestHeader("User-Agent", "atmospheric-quickshell/1.0"); } catch (e) {}
         } catch (e) {
             finish(false, null, String(e));
@@ -521,8 +521,8 @@ Item {
         xhr.send(null);
     }
 
-    // Солнце/дата в биндингах не реактивны — тик раз в минуту, чтобы
-    // условия вроде радуги пересчитывались вовремя.
+    // Sun/date are not reactive in bindings — tick once a minute so
+    // conditions like the rainbow get recomputed in time.
     Timer {
         interval: 60 * 1000
         repeat: true
@@ -530,9 +530,9 @@ Item {
         onTriggered: root.nowTick++
     }
 
-    // Основной опрос: раз в refreshMinutes, первый — сразу при старте.
-    // После каждого цикла к интервалу добавляется 0..2 мин случайной задержки —
-    // Terms met.no просят не засекать трафик фиксированным расписанием.
+    // Main poll: every refreshMinutes, the first one immediately at start.
+    // After each cycle 0..2 min of random delay is added to the interval —
+    // met.no's Terms ask not to hammer traffic on a fixed schedule.
     Timer {
         property int base: Math.max(5, root.cfg ? root.cfg.refreshMinutes : 10) * 60 * 1000
         interval: base
@@ -545,7 +545,7 @@ Item {
         }
     }
 
-    // Быстрый повтор: пока не загрузилось или после ошибки — каждую минуту.
+    // Quick retry: while not loaded or after an error — every minute.
     Timer {
         interval: 60 * 1000
         running: !root.loaded || root.lastError !== ""

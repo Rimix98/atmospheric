@@ -6,8 +6,8 @@
       <stop offset="1" stop-color="#ffffff" stop-opacity="0.55"/>
     </linearGradient>
   </defs>
-  <!-- квадрат 24x24 с тонкой вертикальной линией по центру:
-       ImageParticle масштабирует картинку в квадрат размера частицы,
-       поэтому пропорции капли сохраняются при любом size -->
+  <!-- 24x24 square with a thin vertical line in the center:
+       ImageParticle scales the image to a square of the particle size,
+       so the drop keeps its proportions at any size -->
   <rect x="11" y="1" width="2" height="22" rx="1" fill="url(#g)"/>
 </svg>

@@ -1,9 +1,9 @@
-// Окно оверлея для Wayland: wlr-layer-shell.
-// Работает на Hyprland, Sway, niri, river, Wayfire, labwc, KDE Plasma
-// (все композиторы с поддержкой zwlr-layer-shell-v1).
+// Overlay window for Wayland: wlr-layer-shell.
+// Works on Hyprland, Sway, niri, river, Wayfire, labwc, KDE Plasma
+// (all compositors with zwlr-layer-shell-v1 support).
 //
-// Отдельный файл нужен, чтобы на X11 не импортировался Quickshell.Wayland:
-// там этот модуль либо бесполезен, либо вовсе отсутствует (сборка без Wayland).
+// A separate file is needed so X11 doesn't import Quickshell.Wayland:
+// there the module is either useless or missing entirely (build without Wayland).
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
@@ -14,7 +14,7 @@ PanelWindow {
     property var cfg: null
     property var weather: null
 
-    // На всю площадь экрана: все четыре якоря.
+    // Full screen area: all four anchors.
     anchors {
         top: true
         bottom: true
@@ -22,23 +22,23 @@ PanelWindow {
         right: true
     }
 
-    // Прозрачный фон (важно: задаётся до показа окна,
-    // иначе поверхность останется непрозрачной).
+    // Transparent background (important: set before showing the window,
+    // otherwise the surface stays opaque).
     color: "transparent"
 
-    // Оверлей не резервирует место под собой.
+    // The overlay doesn't reserve space for itself.
     exclusionMode: ExclusionMode.Ignore
 
-    // Пустая регион-маска: клики проходят насквозь.
+    // Empty region mask: clicks pass through.
     mask: Region {}
 
-    // Top — полноэкранные окна (видео, игры) перекрывают оверлей.
-    // "overlay" в Config.layer — виден всегда поверх всего.
+    // Top: fullscreen windows (video, games) cover the overlay.
+    // "overlay" in Config.layer: always visible on top of everything.
     WlrLayershell.layer: cfg && cfg.layer === "overlay" ? WlrLayer.Overlay : WlrLayer.Top
     WlrLayershell.namespace: "quickshell-weather"
 
-    // Когда эффекта нет (ясно) — окно вообще не показывается,
-    // а не крутит пустую сцену.
+    // When there is no effect (clear) — the window isn't shown at all,
+    // instead of running an empty scene.
     visible: cfg && cfg.enabled && (weather ? (weather.active || cfg.debugSquare) : false)
 
     WeatherOverlay {

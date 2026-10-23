@@ -1,24 +1,24 @@
-// Снег: нарисованные снежинки (assets/flake.svg) с медленным вращением.
-// Два слоя глубины: дальний план — мелкие и чаще, ближний — крупные и медленные.
+// Snow: drawn flakes (assets/flake.svg) with slow rotation.
+// Two depth layers: far — small and frequent, near — large and slow.
 import QtQuick
 import QtQuick.Particles
 
 Item {
     id: root
 
-    property real rate: 18          // частиц в секунду суммарно
-    property real windX: 0          // горизонтальный разгон от ветра, px/с²
-    property real speed: 75         // базовая скорость падения, px/сек
+    property real rate: 18          // total particles per second
+    property real windX: 0          // horizontal wind push, px/s²
+    property real speed: 75         // base fall speed, px/second
     property color tint: "#e8f1ff"
     property real opacityScale: 0.42
-    property real flakeSize: 11     // базовый размер хлопья, px
-    property bool blizzard: false   // метель: плотнее, косее и быстрее (снег + сильный ветер)
+    property real flakeSize: 11     // base flake size, px
+    property bool blizzard: false   // blizzard: denser, more slanted, faster (snow + strong wind)
 
     readonly property real effRate:    root.rate    * (root.blizzard ? 2.2 : 1)
     readonly property real effSpeed:   root.speed   * (root.blizzard ? 1.7 : 1)
     readonly property real effWindX:   root.windX   * (root.blizzard ? 2.5 : 1)
     readonly property real effOpacity: Math.min(0.85, root.opacityScale * (root.blizzard ? 1.2 : 1))
-    readonly property real effAngleVar:  root.blizzard ? 12 : 40   // метель: полосы почти параллельны
+    readonly property real effAngleVar:  root.blizzard ? 12 : 40   // blizzard: streaks nearly parallel
     readonly property real effAngleVar2: root.blizzard ? 16 : 30
     readonly property real effAccVar:    root.blizzard ? 8  : 20
     readonly property real effAccVar2:   root.blizzard ? 10 : 25
@@ -32,13 +32,13 @@ Item {
         color: root.tint
         alpha: root.effOpacity
         alphaVariation: root.effOpacity * 0.7
-        rotationVariation: 180          // случайный стартовый разворот
-        rotationVelocity: 14            // медленное вращение — снежинка «играет»
+        rotationVariation: 180          // random starting rotation
+        rotationVelocity: 14            // slow rotation — the flake “plays”
         rotationVelocityVariation: 22
         entryEffect: ImageParticle.Fade
     }
 
-    // дальний план: мелкие, быстрее, их больше
+    // far layer: small, faster, more of them
     Emitter {
         system: ps
         x: -60
@@ -56,7 +56,7 @@ Item {
 
         velocity: AngleDirection {
             angle: 90
-            angleVariation: root.effAngleVar  // сильный дрейф, как у мелкой крупы
+            angleVariation: root.effAngleVar  // strong drift, like fine sleet
             magnitude: root.effSpeed * 1.4
             magnitudeVariation: 40
         }
@@ -67,7 +67,7 @@ Item {
         }
     }
 
-    // ближний план: крупные медленные снежинки поверх
+    // near layer: large slow flakes on top
     Emitter {
         system: ps
         x: -60
