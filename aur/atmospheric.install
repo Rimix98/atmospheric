@@ -1,0 +1,31 @@
+# Messages printed by pacman after atmospheric is installed or upgraded.
+
+post_install() {
+  cat <<'EOF'
+
+atmospheric is installed. Next steps:
+
+  atmospheric city           # pick your city (the menu searches the world)
+  atmospheric                # start the weather overlay
+  atmospheric rain           # force rain, to see it right away
+  atmospheric autostart on   # start the overlay with your session
+
+The program lives read-only in /usr/share/atmospheric and runs from a private
+copy in ~/.config/quickshell/atmospheric; the `atmospheric` command refreshes
+that copy whenever the package is upgraded, keeping your city.
+
+Do NOT run install.sh or `atmospheric install` — /usr/bin/atmospheric already
+comes from this package.
+EOF
+  if [ -L /usr/local/bin/atmospheric ]; then
+    echo
+    echo "note: /usr/local/bin/atmospheric is left over from a manual install and"
+    echo "      shadows the package command. Remove it with:"
+    echo "        sudo rm -f /usr/local/bin/atmospheric"
+  fi
+}
+
+post_upgrade() {
+  echo "atmospheric: the copy in ~/.config/quickshell/atmospheric refreshes itself"
+  echo "on the next run; your city is kept. Pick it again: atmospheric city"
+}

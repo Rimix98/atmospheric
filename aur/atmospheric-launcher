@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# ============================================================
+# atmospheric — launcher installed by the AUR package as /usr/bin/atmospheric.
+#
+# pacman owns the program files (read-only, /usr/share/atmospheric), but the
+# overlay needs a writable directory: `atmospheric city` rewrites Config.qml
+# in place and quickshell hot-reloads it on save.
+#
+# So this wrapper keeps a private copy of the program in
+# ~/.config/quickshell/atmospheric — a normal quickshell config path, so
+# `qs -c atmospheric` keeps working — and runs it from there. The copy is
+# refreshed whenever the installed version changes: the chosen city is carried
+# over, a hand-tuned Config.qml is kept as a backup, and the packaged radar
+# daemon is exposed where Radar.qml expects it.
+#
+# Overrides, mostly for tests:
+#   ATMOSPHERIC_SYS_DIR   /usr/share/atmospheric
+#   ATMOSPHERIC_USER_DIR  ~/.config/quickshell/atmospheric
+#   ATMOSPHERIC_RADAR_BIN /usr/lib/atmospheric/atmospheric-radar
+#   ATMOSPHERIC_STATE_DIR ~/.local/state/atmospheric
+# ============================================================
+set -euo pipefail
+
+SYS_DIR="${ATMOSPHERIC_SYS_DIR:-/usr/share/atmospheric}"
+USER_DIR="${ATMOSPHERIC_USER_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/atmospheric}"
+RADAR_BIN="${ATMOSPHERIC_RADAR_BIN:-/usr/lib/atmospheric/atmospheric-radar}"
+STATE_DIR="${ATMOSPHERIC_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/atmospheric}"
+
+ver_of() { cat "$1/VERSION" 2>/dev/null || true; }
+
+sys_ver="$(ver_of "$SYS_DIR")"
+usr_ver="$(ver_of "$USER_DIR")"
+
+if [[ -z "$sys_ver" ]]; then
+    echo "atmospheric: $SYS_DIR is missing — the package installation is broken" >&2
+    echo "  reinstall the package (yay/paru/pikaur -S atmospheric), or use a git" >&2
+    echo "  checkout with ./install.sh instead of the package" >&2
+    exit 1
+fi
+
+# --- city, carried over between versions -------------------------
+# `atmospheric city` writes city/latitude/longitude into Config.qml; a package
+# upgrade ships a fresh default file, so the three values are read out of the
+# old copy and written into the new one (same lines the picker itself writes).
+city_of() {   # city_of <Config.qml> → "city|latitude|longitude"
+    local f="$1" city lat lon
+    [[ -f "$f" ]] || return 1
+    city="$(grep -oE 'property string city: "[^"]*"' "$f" | head -n1 | sed 's/.*"\(.*\)"/\1/')" || true
+    # fields are: property real latitude: 40.7128 → the number is the 4th
+    lat="$(grep -oE 'property real latitude: -?[0-9]+([.][0-9]+)?' "$f" | head -n1 | awk '{print $4}')" || true
+    lon="$(grep -oE 'property real longitude: -?[0-9]+([.][0-9]+)?' "$f" | head -n1 | awk '{print $4}')" || true
+    [[ -n "$city" && -n "$lat" && -n "$lon" ]] || return 1
+    printf '%s|%s|%s\n' "$city" "$lat" "$lon"
+}
+
+apply_city() {   # apply_city <Config.qml> <city> <lat> <lon>
+    local cfg="$1" name="$2" lat="$3" lon="$4" tmp
+    tmp="$(mktemp "${cfg}.XXXXXX")"
+    while IFS= read -r line; do
+        case "$line" in
+            *"property string city: "*)    printf '    property string city: "%s"\n' "$name" ;;
+            *"property real latitude: "*)  printf '    property real latitude: %s\n' "$lat" ;;
+            *"property real longitude: "*) printf '    property real longitude: %s\n' "$lon" ;;
+            *) printf '%s\n' "$line" ;;
+        esac
+    done < "$cfg" > "$tmp"
+    cat "$tmp" > "$cfg"   # same inode: a running shell hot-reloads the save
+    rm -f "$tmp"
+}
+
+# --- radar daemon -------------------------------------------------
+# Radar.qml spawns the daemon relative to the shell directory:
+#   radar-backend/target/release/atmospheric-radar
+# (that is where a git checkout builds it). The package puts the binary in
+# /usr/lib/atmospheric — expose it at the expected path, so the radar works
+# whether quickshell was started through this wrapper or by autostart.
+# A real binary left there by a manual `cargo build` is left alone.
+link_radar() {
+    local dest="$USER_DIR/radar-backend/target/release/atmospheric-radar"
+    [[ -x "$RADAR_BIN" ]] || return 0
+    mkdir -p "$(dirname "$dest")"
+    if [[ -L "$dest" || ! -e "$dest" ]]; then
+        ln -sfn "$RADAR_BIN" "$dest"
+    fi
+}
+
+# --- refresh the private copy --------------------------------------
+sync_user_copy() {
+    local saved="" old_cfg="$USER_DIR/Config.qml" first_run=0 backup=""
+
+    [[ -n "$usr_ver" ]] || first_run=1
+
+    if [[ -f "$old_cfg" ]]; then
+        saved="$(city_of "$old_cfg" || true)"
+        if [[ -n "$usr_ver" ]] && ! cmp -s "$old_cfg" "$SYS_DIR/Config.qml"; then
+            mkdir -p "$STATE_DIR"
+            backup="$STATE_DIR/Config.qml.bak-$usr_ver"
+            cp -a "$old_cfg" "$backup"
+        fi
+    fi
+
+    # Replace the copy wholesale: files dropped by newer versions go away too.
+    rm -rf -- "$USER_DIR"
+    mkdir -p -- "$USER_DIR"
+    cp -a -- "$SYS_DIR/." "$USER_DIR/"
+
+    if [[ -n "$saved" ]]; then
+        IFS='|' read -r city lat lon <<<"$saved"
+        apply_city "$USER_DIR/Config.qml" "$city" "$lat" "$lon"
+    fi
+
+    chmod +x "$USER_DIR/atmospheric" 2>/dev/null || true
+    link_radar
+
+    echo "✓ atmospheric $sys_ver → $USER_DIR"
+    if [[ "$first_run" == "1" ]]; then
+        cat <<'EOF'
+  first run — two optional steps:
+    atmospheric city           pick your city (the menu searches the world)
+    atmospheric autostart on   start the overlay with your session
+EOF
+    fi
+    if [[ -n "$backup" ]]; then
+        echo "  previous settings kept: $backup"
+    fi
+}
+
+# --- keep the copy in step with the package ------------------------
+if [[ "$sys_ver" != "$usr_ver" ]]; then
+    sync_in_lock() {
+        if command -v flock >/dev/null 2>&1; then
+            ( flock 9
+              # a parallel invocation may have refreshed the copy already
+              [[ "$sys_ver" == "$(ver_of "$USER_DIR")" ]] || sync_user_copy
+            ) 9>"${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/atmospheric-sync-$UID.lock"
+        else
+            sync_user_copy
+        fi
+    }
+    sync_in_lock
+fi
+
+link_radar
+
+if [[ ! -x "$USER_DIR/atmospheric" ]]; then
+    echo "atmospheric: $USER_DIR/atmospheric is missing" >&2
+    exit 1
+fi
+
+exec "$USER_DIR/atmospheric" "$@"

@@ -1,0 +1,9 @@
+# makepkg working directories and results
+src/
+pkg/
+*.pkg.tar*
+*.log
+
+# sources downloaded by makepkg (kept next to the PKGBUILD unless SRCDEST is set)
+*.tar.*
+*.sig

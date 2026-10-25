@@ -1,0 +1,25 @@
+pkgbase = atmospheric
+	pkgdesc = Fullscreen weather overlay on Quickshell: rain, snow, fog, thunderstorm and rainbow on Wayland and X11
+	pkgver = 1.0.1
+	pkgrel = 1
+	url = https://github.com/Rimix98/atmospheric
+	install = atmospheric.install
+	arch = x86_64
+	license = MIT
+	makedepends = rust
+	depends = quickshell
+	depends = qt6-svg
+	depends = curl
+	optdepends = python: parsing city search results (Nominatim); jq works as an alternative
+	optdepends = jq: parsing city search results (alternative to python)
+	optdepends = grim: screenshots on Wayland (atmospheric shot)
+	optdepends = slurp: region picking for grim (atmospheric shot --region)
+	optdepends = maim: screenshots on X11
+	optdepends = socat: auto-hide the overlay in games (Hyprland only)
+	optdepends = picom: transparency on bare X11 window managers
+	source = atmospheric-1.0.1.tar.gz::https://github.com/Rimix98/atmospheric/archive/refs/tags/v1.0.1.tar.gz
+	source = atmospheric-launcher
+	sha256sums = d3c1e6dec16947947955721fdfd2532cb40e8184d3d45577acbf0e17933097c0
+	sha256sums = e5f24ab53b688141715b79d6d390e201a997762fa8c80701d3e90c4b861aee2e
+
+pkgname = atmospheric

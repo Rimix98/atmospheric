@@ -3,6 +3,17 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versions: [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- AUR package `atmospheric`: `aur/` holds the `PKGBUILD`, the launcher that
+  keeps a writable per-user copy of the overlay in
+  `~/.config/quickshell/atmospheric` (the picker writes `Config.qml` in
+  place, so the copy is refreshed on package upgrades with the city carried
+  over), and the pacman install message. `make aur` builds it locally,
+  `make aur-sync` pushes the files into an AUR clone.
+
 ## [1.0.1] — 2026-10-25
 
 The release translated into English.

@@ -1,0 +1,63 @@
+# Maintainer: Rimix98 <Rimix98 at users.noreply.github.com>
+pkgname=atmospheric
+pkgver=1.0.1
+pkgrel=1
+pkgdesc='Fullscreen weather overlay on Quickshell: rain, snow, fog, thunderstorm and rainbow on Wayland and X11'
+arch=('x86_64')
+url='https://github.com/Rimix98/atmospheric'
+license=('MIT')
+depends=('quickshell' 'qt6-svg' 'curl')
+makedepends=('rust')
+optdepends=(
+  'python: parsing city search results (Nominatim); jq works as an alternative'
+  'jq: parsing city search results (alternative to python)'
+  'grim: screenshots on Wayland (atmospheric shot)'
+  'slurp: region picking for grim (atmospheric shot --region)'
+  'maim: screenshots on X11'
+  'socat: auto-hide the overlay in games (Hyprland only)'
+  'picom: transparency on bare X11 window managers'
+)
+install='atmospheric.install'
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
+        'atmospheric-launcher')
+sha256sums=('d3c1e6dec16947947955721fdfd2532cb40e8184d3d45577acbf0e17933097c0'
+            'e5f24ab53b688141715b79d6d390e201a997762fa8c80701d3e90c4b861aee2e')
+
+prepare() {
+  cd "$pkgname-$pkgver/radar-backend"
+  msg2 'Fetching Rust dependencies...'
+  cargo fetch --locked
+}
+
+build() {
+  cd "$pkgname-$pkgver/radar-backend"
+  # Some setups put LTO into CFLAGS/CXXFLAGS (CachyOS ships -flto=auto).
+  # cc-rs passes those to ring's C sources, so the archive ends up full of
+  # GCC LTO bitcode — and rust-lld, which links the final binary, cannot read
+  # it: the link fails with undefined ring_core_* symbols. LTO buys nothing
+  # for these few C files, so turn it off for the C parts only.
+  # Out of tree: the source copy stays clean, package() can copy it as is.
+  CFLAGS="${CFLAGS:-} -fno-lto" \
+  CXXFLAGS="${CXXFLAGS:-} -fno-lto" \
+  CARGO_TARGET_DIR="$srcdir/cargo-target" cargo build --frozen --release
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+
+  # The program, read-only. The launcher mirrors it into
+  # ~/.config/quickshell/atmospheric on first run and on every version
+  # change — that private copy is writable, because `atmospheric city`
+  # edits Config.qml in place and quickshell hot-reloads the save.
+  install -dm755 "$pkgdir/usr/share/$pkgname"
+  cp -a . "$pkgdir/usr/share/$pkgname/"
+  rm -rf "$pkgdir/usr/share/$pkgname/aur"   # packaging is not runtime material
+
+  # RainViewer daemon, looked up by Radar.qml through a symlink the launcher
+  # puts at radar-backend/target/release/atmospheric-radar in the private copy.
+  install -Dm755 "$srcdir/cargo-target/release/atmospheric-radar" \
+                 "$pkgdir/usr/lib/$pkgname/atmospheric-radar"
+
+  install -Dm755 "$srcdir/atmospheric-launcher" "$pkgdir/usr/bin/atmospheric"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

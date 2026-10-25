@@ -26,6 +26,23 @@ atmospheric      # start the overlay
 Check state with `atmospheric status`; try effects with `atmospheric rain`,
 `atmospheric snow`, `atmospheric auto`.
 
+### Arch Linux (AUR)
+
+```bash
+yay -S atmospheric      # or: paru -S atmospheric, pikaur -S atmospheric
+atmospheric city        # pick your city (the menu searches the world)
+atmospheric             # start the overlay
+```
+
+pacman cannot write into `$HOME`, but the city picker edits `Config.qml` in
+place. The package therefore installs the program read-only into
+`/usr/share/atmospheric`, and the `atmospheric` command keeps a private copy in
+`~/.config/quickshell/atmospheric` — a normal quickshell config path —
+refreshing it on every package upgrade. Your city survives the refresh; other
+hand edits to `Config.qml` are kept in
+`~/.local/state/atmospheric/Config.qml.bak-<old version>`. Packaging details:
+[`aur/README.md`](aur/README.md).
+
 ## Structure
 
 ```
@@ -56,8 +73,9 @@ atmospheric/
 │   ├── screenshot.sh        # thin wrapper over atmospheric shot
 │   └── autohide-games.sh    # hide the overlay for games/mpv (Hyprland socket2)
 ├── hyprland.conf.snippets   # ready-made lines for hyprland.conf
-├── Makefile                 # make check / install / dist
-├── VERSION                  # current version (1.0.0)
+├── aur/                     # AUR packaging: PKGBUILD, launcher, .SRCINFO
+├── Makefile                 # make check / install / dist / aur
+├── VERSION                  # current version (1.0.1)
 ├── CHANGELOG.md             # change history
 └── LICENSE                  # MIT
 ```
