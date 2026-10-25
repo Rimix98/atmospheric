@@ -3,6 +3,21 @@
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versions: [SemVer](https://semver.org/).
 
+## [1.0.1] — 2026-10-25
+
+The release translated into English.
+
+### Changed
+
+- Every user-facing string is English now: the `atmospheric` CLI, quickshell
+  logs, `scripts/`, `hyprland.conf.snippets`, `install.sh`, the README and the
+  Rust daemon output.
+- Default coordinates are New York (40.7128, -74.0060) and the bundled picker
+  list is a world city list (`assets/cities.txt`, `Name|latitude|longitude`);
+  `assets/cities-ru.txt` is gone — `/` in the picker searches any city in the
+  world via Nominatim anyway.
+- SVG sprites (`drop`, `flake`, `cloud`) redrawn with English labels.
+
 ## [1.0.0] — 2026-10-22
 
 First public release.
